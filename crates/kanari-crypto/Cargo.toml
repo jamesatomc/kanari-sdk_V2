@@ -33,3 +33,7 @@ base64 = "0.22.1"
 
 kanari-types.workspace = true
 kanari-common.workspace = true
+
+[features]
+# keep blake3 optional in Cargo.toml but enable it in the crate default features
+default = ["blake3"]

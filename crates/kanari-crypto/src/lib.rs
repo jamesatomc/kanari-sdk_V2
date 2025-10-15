@@ -53,32 +53,32 @@ impl Default for HashAlgorithm {
     }
 }
 
-// /// Cryptographic hash using SHA3-256
-// pub fn hash_data(data: &[u8]) -> Vec<u8> {
-//     hash_data_with_algorithm(data, HashAlgorithm::Sha3_256)
-// }
+/// Cryptographic hash using SHA3-256
+pub fn hash_data(data: &[u8]) -> Vec<u8> {
+    hash_data_with_algorithm(data, HashAlgorithm::Sha3_256)
+}
 
-// /// Cryptographic hash using Blake3 (faster and secure alternative to SHA3)
-// pub fn hash_data_blake3(data: &[u8]) -> Vec<u8> {
-//     hash_data_with_algorithm(data, HashAlgorithm::Blake3)
-// }
+/// Cryptographic hash using Blake3 (faster and secure alternative to SHA3)
+pub fn hash_data_blake3(data: &[u8]) -> Vec<u8> {
+    hash_data_with_algorithm(data, HashAlgorithm::Blake3)
+}
 
-// /// Cryptographic hash using the specified algorithm
-// pub fn hash_data_with_algorithm(data: &[u8], algorithm: HashAlgorithm) -> Vec<u8> {
-//     match algorithm {
-//         HashAlgorithm::Sha3_256 => {
-//             use sha3::{Digest, Sha3_256};
-//             let mut hasher = Sha3_256::new();
-//             hasher.update(data);
-//             hasher.finalize().to_vec()
-//         }
-//         HashAlgorithm::Blake3 => {
-//             let mut hasher = blake3::Hasher::new();
-//             hasher.update(data);
-//             hasher.finalize().as_bytes().to_vec()
-//         }
-//     }
-// }
+/// Cryptographic hash using the specified algorithm
+pub fn hash_data_with_algorithm(data: &[u8], algorithm: HashAlgorithm) -> Vec<u8> {
+    match algorithm {
+        HashAlgorithm::Sha3_256 => {
+            use sha3::{Digest, Sha3_256};
+            let mut hasher = Sha3_256::new();
+            hasher.update(data);
+            hasher.finalize().to_vec()
+        }
+        HashAlgorithm::Blake3 => {
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(data);
+            hasher.finalize().as_bytes().to_vec()
+        }
+    }
+}
 
 // Add constant for recommended password length
 pub const MIN_RECOMMENDED_PASSWORD_LENGTH: usize = 12;
