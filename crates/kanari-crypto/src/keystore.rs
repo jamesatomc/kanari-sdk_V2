@@ -30,6 +30,18 @@ pub enum KeystoreError {
 
     #[error("Password verification failed")]
     PasswordVerificationFailed,
+
+    #[error("Keystore is locked")]
+    Locked,
+
+    #[error("Keystore is corrupted: {0}")]
+    Corrupted(String),
+
+    #[error("Access denied: {0}")]
+    AccessDenied(String),
+
+    #[error("Backup error: {0}")]
+    BackupError(String),
 }
 
 /// Structure representing the keystore file
@@ -51,6 +63,18 @@ pub struct Keystore {
     /// Whether the password is empty
     #[serde(default)]
     pub is_password_empty: bool,
+
+    /// Version of the keystore format
+    #[serde(default = "default_keystore_version")]
+    pub version: String,
+
+    /// Last modified timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<u64>,
+}
+
+fn default_keystore_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 /// Structure for storing mnemonic phrases
@@ -89,7 +113,7 @@ impl Keystore {
     }
 
     /// Save keystore to disk
-    pub fn save(&self) -> Result<(), KeystoreError> {
+    pub fn save(&mut self) -> Result<(), KeystoreError> {
         let keystore_path = get_keystore_path();
         let keystore_dir = keystore_path.parent().unwrap();
 
@@ -97,6 +121,14 @@ impl Keystore {
         if !keystore_dir.exists() {
             fs::create_dir_all(keystore_dir)?;
         }
+
+        // Update last modified timestamp
+        self.last_modified = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
 
         let keystore_data = serde_json::to_string_pretty(self)?;
         fs::write(keystore_path, keystore_data)?;
@@ -212,6 +244,55 @@ impl Keystore {
     pub fn has_mnemonic(&self) -> bool {
         self.mnemonic.mnemonic_phrase_encryption.is_some()
     }
+
+    /// Validate keystore integrity
+    pub fn validate(&self) -> Result<(), KeystoreError> {
+        // Check version compatibility
+        if self.version.is_empty() {
+            return Err(KeystoreError::InvalidFormat);
+        }
+
+        // Validate all encrypted data entries
+        for (address, encrypted_data) in &self.keys {
+            if encrypted_data.get_ciphertext().is_empty() {
+                return Err(KeystoreError::Corrupted(format!(
+                    "Empty ciphertext for address: {}",
+                    address
+                )));
+            }
+            if encrypted_data.get_nonce().is_empty() {
+                return Err(KeystoreError::Corrupted(format!(
+                    "Empty nonce for address: {}",
+                    address
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get keystore statistics
+    pub fn statistics(&self) -> KeystoreStatistics {
+        KeystoreStatistics {
+            total_keys: self.keys.len(),
+            has_mnemonic: self.has_mnemonic(),
+            mnemonic_addresses: self.mnemonic.addresses.len(),
+            session_keys: self.session_keys.len(),
+            version: self.version.clone(),
+            last_modified: self.last_modified,
+        }
+    }
+}
+
+/// Keystore statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeystoreStatistics {
+    pub total_keys: usize,
+    pub has_mnemonic: bool,
+    pub mnemonic_addresses: usize,
+    pub session_keys: usize,
+    pub version: String,
+    pub last_modified: Option<u64>,
 }
 
 /// Get path to the keystore file

@@ -16,7 +16,8 @@ pub fn compress_data(data: &[u8]) -> Result<Vec<u8>, io::Error> {
 /// Decompress data that was compressed with zstd
 pub fn decompress_data(data: &[u8]) -> Result<Vec<u8>, io::Error> {
     // 10MB maximum size limit to prevent decompression bombs
-    decompress(data, 10_485_760).map_err(|e| io::Error::other(format!("Decompression error: {}", e)))
+    decompress(data, 10_485_760)
+        .map_err(|e| io::Error::other(format!("Decompression error: {}", e)))
 }
 
 #[cfg(test)]

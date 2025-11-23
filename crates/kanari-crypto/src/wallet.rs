@@ -4,9 +4,9 @@
 //! storage, and loading of cryptocurrency wallets.
 
 use crate::keys::CurveType;
-use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use std::io;
+use std::str::FromStr;
 use thiserror::Error;
 
 use kanari_common::{load_kanari_config, save_kanari_config};
@@ -17,8 +17,8 @@ use toml; // Ensure toml is imported for serialization/deserialization
 use crate::Keystore;
 use crate::compression;
 use crate::encryption;
-use crate::signatures;
-use crate::hd_wallet::{self, HdError}; // ADDED: Import hd_wallet module
+use crate::hd_wallet::{self, HdError};
+use crate::signatures; // ADDED: Import hd_wallet module
 
 /// Errors that can occur during wallet operations
 #[derive(Error, Debug)]
@@ -47,8 +47,23 @@ pub enum WalletError {
     #[error("Keystore error: {0}")]
     KeystoreError(String),
 
-    #[error("HD Wallet error: {0}")] // ADDED: Error for HD operations
+    #[error("HD Wallet error: {0}")]
     HdWalletError(#[from] HdError),
+
+    #[error("Wallet already exists: {0}")]
+    AlreadyExists(String),
+
+    #[error("Invalid wallet format: {0}")]
+    InvalidFormat(String),
+
+    #[error("Wallet is locked")]
+    Locked,
+
+    #[error("Access denied: {0}")]
+    AccessDenied(String),
+
+    #[error("Verification error: {0}")]
+    VerificationError(String),
 }
 
 /// Structure representing a wallet with private key and address
@@ -294,12 +309,8 @@ pub fn create_hd_wallet(
     // Load mnemonic and derive keypair
     let mnemonic_phrase = load_mnemonic(password)?;
 
-    let key_pair = hd_wallet::derive_keypair_from_path(
-        &mnemonic_phrase,
-        password,
-        derivation_path,
-        curve,
-    )?;
+    let key_pair =
+        hd_wallet::derive_keypair_from_path(&mnemonic_phrase, password, derivation_path, curve)?;
 
     // Convert the derived address string into an Address type
     let address = Address::from_str(&key_pair.address)

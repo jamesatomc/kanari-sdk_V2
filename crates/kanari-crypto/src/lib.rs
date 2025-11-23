@@ -1,18 +1,26 @@
-//! Secure cryptographic primitives for the Mona blockchain platform
+//! Secure cryptographic primitives for the Kanari blockchain platform
 //!
 //! This crate provides cryptographic operations including:
 //! - Key generation and management
 //! - Digital signatures
 //! - Encryption and decryption
 //! - Wallet operations
+//! - Hardware Security Module (HSM) support
+//! - Key rotation and lifecycle management
+//! - Security audit logging
+//! - Backup and restore functionality
 
+pub mod audit;
+pub mod backup;
 pub mod compression;
 pub mod encryption;
+pub mod hd_wallet;
+pub mod hsm;
+pub mod key_rotation;
+pub mod keys;
 pub mod keystore;
 pub mod signatures;
 pub mod wallet;
-pub mod keys;
-pub mod hd_wallet;
 
 // Re-export signature functionality
 pub use signatures::{
@@ -38,6 +46,23 @@ pub use keystore::{Keystore, get_keystore_path, keystore_exists};
 
 // Re-export compression functionality
 pub use compression::{compress_data, decompress_data};
+
+// Re-export HSM functionality
+pub use hsm::{HsmConfig, HsmError, HsmInterface, HsmProvider, SoftwareHsm, create_hsm};
+
+// Re-export key rotation functionality
+pub use key_rotation::{
+    KeyMetadata, KeyRotationError, KeyRotationManager, KeyRotationPolicy, RotationStatistics,
+};
+
+// Re-export audit functionality
+pub use audit::{
+    AuditEntry, AuditError, AuditLogger, EventSeverity, SecurityEvent, create_default_logger,
+    get_default_audit_log_path,
+};
+
+// Re-export backup functionality
+pub use backup::{BackupError, BackupInfo, BackupManager, BackupMetadata, EncryptedBackup};
 
 /// Hash algorithm options
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

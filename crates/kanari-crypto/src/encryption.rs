@@ -172,7 +172,9 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> Result<Vec<u8>
 
     // Create nonce for decryption - need to convert Vec<u8> to Nonce
     if nonce_bytes.len() != 12 {
-        return Err(EncryptionError::InvalidFormat("Invalid nonce length".to_string()));
+        return Err(EncryptionError::InvalidFormat(
+            "Invalid nonce length".to_string(),
+        ));
     }
     #[allow(deprecated)]
     let nonce = aes_gcm::Nonce::from_slice(&nonce_bytes);

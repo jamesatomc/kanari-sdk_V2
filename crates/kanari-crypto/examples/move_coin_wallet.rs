@@ -1,4 +1,4 @@
-use kanari_crypto::keys::{generate_keypair, CurveType};
+use kanari_crypto::keys::{CurveType, generate_keypair};
 use kanari_crypto::wallet::save_wallet;
 use std::env;
 

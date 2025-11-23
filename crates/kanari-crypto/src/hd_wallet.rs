@@ -3,11 +3,11 @@
 //! Small helpers to derive child private keys and produce KeyPairs compatible
 //! with the rest of the crate.
 
-use bip39::{Language, Mnemonic};
+use crate::keys::{CurveType, KANARI_KEY_PREFIX, KeyPair, keypair_from_private_key};
 use bip32::{DerivationPath, XPrv};
-use crate::keys::{CurveType, keypair_from_private_key, KANARI_KEY_PREFIX, KeyPair};
-use thiserror::Error;
+use bip39::{Language, Mnemonic};
 use std::str::FromStr;
+use thiserror::Error;
 
 /// Errors returned from HD wallet operations
 #[derive(Error, Debug)]
@@ -58,7 +58,8 @@ pub fn derive_keypair_from_path(
     let formatted = format!("{}{}", KANARI_KEY_PREFIX, raw_hex);
 
     // Build KeyPair using existing helper
-    keypair_from_private_key(&formatted, curve).map_err(|e| HdError::DerivationFailed(e.to_string()))
+    keypair_from_private_key(&formatted, curve)
+        .map_err(|e| HdError::DerivationFailed(e.to_string()))
 }
 
 /// Derive multiple addresses using a path template that contains `{index}`.

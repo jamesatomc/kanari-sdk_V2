@@ -1,7 +1,7 @@
 // cargo run -p kanari-crypto --example hd_wallet_example
 
-use kanari_crypto::keys::{generate_mnemonic, CurveType};
-use kanari_crypto::wallet::{save_mnemonic, create_hd_wallet, save_hd_wallet, load_wallet, Wallet};
+use kanari_crypto::keys::{CurveType, generate_mnemonic};
+use kanari_crypto::wallet::{Wallet, create_hd_wallet, load_wallet, save_hd_wallet, save_mnemonic};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -25,7 +25,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let curve = CurveType::K256;
 
     let child_wallet: Wallet = create_hd_wallet(password, path, curve)?;
-    println!("Derived child wallet for path {} -> address {}", path, child_wallet.address);
+    println!(
+        "Derived child wallet for path {} -> address {}",
+        path, child_wallet.address
+    );
 
     // 4) Persist the child wallet into keystore
     save_hd_wallet(&child_wallet, password)?;
