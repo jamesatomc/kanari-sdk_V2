@@ -4,12 +4,13 @@ use kanari_crypto::keys::{
 use kanari_crypto::{sign_message, verify_signature};
 
 fn main() {
-    println!("Kanari Crypto - Signing and Verification Example");
-    println!("==============================================");
+    println!("🔐 Kanari Crypto v2.0 - Signing and Verification Example");
+    println!("========================================================");
+    println!("\nℹ️  This example demonstrates both classical and post-quantum signatures");
 
     // Example 1: K256 (secp256k1) signing and verification
-    println!("\nExample 1: K256 Curve");
-    println!("---------------------");
+    println!("\n📝 Example 1: K256 Curve (Classical - NOT Quantum-Safe)");
+    println!("-------------------------------------------------------");
 
     // Generate a new K256 wallet
     let keypair = generate_keypair(CurveType::K256).expect("Failed to generate K256 keypair");
@@ -330,4 +331,59 @@ fn main() {
         }
         Err(e) => println!("Error importing from mnemonic: {}", e),
     }
+
+    // Example 6: Post-Quantum Cryptography Demo
+    println!("\n🚀 Example 6: Post-Quantum Signatures (Quantum-Safe)");
+    println!("----------------------------------------------------");
+
+    println!("\nℹ️  Note: PQC algorithms generate larger keys and signatures");
+    println!("   but provide protection against quantum computer attacks.\n");
+
+    // Dilithium3 (Recommended)
+    println!("1. Dilithium3 (Recommended - NIST Level 3):");
+    match generate_keypair(CurveType::Dilithium3) {
+        Ok(pqc_keypair) => {
+            println!("  ✅ Generated Dilithium3 keypair");
+            println!("  Address: {}", pqc_keypair.address);
+            println!(
+                "  Security Level: {}/5",
+                pqc_keypair.curve_type.security_level()
+            );
+            println!(
+                "  Quantum-Safe: {}",
+                pqc_keypair.curve_type.is_post_quantum()
+            );
+            println!(
+                "  Public Key Length: {} chars",
+                pqc_keypair.public_key.len()
+            );
+        }
+        Err(e) => println!("  ❌ Error generating Dilithium3 keypair: {}", e),
+    }
+
+    // Hybrid Ed25519 + Dilithium3 (Best Practice)
+    println!("\n2. Ed25519+Dilithium3 Hybrid (Best Practice):");
+    match generate_keypair(CurveType::Ed25519Dilithium3) {
+        Ok(hybrid_keypair) => {
+            println!("  ✅ Generated Hybrid keypair");
+            println!("  Address: {}", hybrid_keypair.address);
+            println!(
+                "  Security Level: {}/5",
+                hybrid_keypair.curve_type.security_level()
+            );
+            println!(
+                "  Quantum-Safe: {}",
+                hybrid_keypair.curve_type.is_post_quantum()
+            );
+            println!("  Is Hybrid: {}", hybrid_keypair.curve_type.is_hybrid());
+            println!("  Description: Combines classical Ed25519 + quantum-safe Dilithium3");
+        }
+        Err(e) => println!("  ❌ Error generating Hybrid keypair: {}", e),
+    }
+
+    println!("\n✅ Example completed successfully!");
+    println!("\n💡 Recommendation:");
+    println!("   For new applications: Use CurveType::Ed25519Dilithium3 (Hybrid)");
+    println!("   For maximum security: Use CurveType::Dilithium5");
+    println!("   For legacy systems: Use CurveType::Ed25519 or K256 (but migrate soon)");
 }

@@ -12,6 +12,11 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 sha3 = "0.10.8"
 zstd = "0.13.3"
 
+# Post-Quantum Cryptography (PQC) - NIST Standards
+pqcrypto-dilithium = "0.5"  # Post-quantum signatures
+pqcrypto-kyber = "0.8"      # Post-quantum key encapsulation
+pqcrypto-sphincsplus = "0.7.2" # Hash-based signatures (ultra-secure)
+pqcrypto-traits = "0.3"     # Common traits for PQC
 
 # Make blake3 optional and enabled via the blake3 feature
 blake3 = { version = "1.3.1", optional = true }
@@ -46,4 +51,6 @@ tempfile = "3.8"
 
 [features]
 # keep blake3 optional in Cargo.toml but enable it in the crate default features
-default = ["blake3"]
+default = ["blake3", "pqc"]
+pqc = []  # Post-quantum cryptography feature
+hybrid = ["pqc"]  # Hybrid classical + PQC schemes

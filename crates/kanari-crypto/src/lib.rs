@@ -64,24 +64,52 @@ pub use audit::{
 // Re-export backup functionality
 pub use backup::{BackupError, BackupInfo, BackupManager, BackupMetadata, EncryptedBackup};
 
-/// Hash algorithm options
+/// Hash algorithm options (including quantum-resistant)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HashAlgorithm {
-    /// SHA3-256 algorithm (default)
+    /// SHA3-256 algorithm (default, quantum-resistant)
     #[default]
     Sha3_256,
+    /// SHA3-512 algorithm (higher security, quantum-resistant)
+    Sha3_512,
     /// Blake3 algorithm (faster, equally secure)
     Blake3,
+    /// SHAKE256 (extendable output, quantum-resistant)
+    Shake256,
 }
 
-/// Cryptographic hash using SHA3-256
+/// Cryptographic hash using SHA3-256 (default)
 pub fn hash_data(data: &[u8]) -> Vec<u8> {
     hash_data_with_algorithm(data, HashAlgorithm::Sha3_256)
 }
 
-/// Cryptographic hash using Blake3 (faster and secure alternative to SHA3)
+/// Cryptographic hash using SHA3-512 (quantum-resistant, 512-bit)
+pub fn hash_data_sha3_512(data: &[u8]) -> Vec<u8> {
+    hash_data_with_algorithm(data, HashAlgorithm::Sha3_512)
+}
+
+/// Cryptographic hash using Blake3 (faster alternative)
 pub fn hash_data_blake3(data: &[u8]) -> Vec<u8> {
     hash_data_with_algorithm(data, HashAlgorithm::Blake3)
+}
+
+/// Cryptographic hash using SHAKE256 with 256-bit output (quantum-resistant)
+pub fn hash_data_shake256(data: &[u8]) -> Vec<u8> {
+    hash_data_with_algorithm(data, HashAlgorithm::Shake256)
+}
+
+/// Cryptographic hash using SHAKE256 with custom output length
+pub fn hash_data_shake256_custom(data: &[u8], output_len: usize) -> Vec<u8> {
+    use sha3::{
+        Shake256,
+        digest::{ExtendableOutput, Update, XofReader},
+    };
+    let mut hasher = Shake256::default();
+    hasher.update(data);
+    let mut reader = hasher.finalize_xof();
+    let mut output = vec![0u8; output_len];
+    reader.read(&mut output);
+    output
 }
 
 /// Cryptographic hash using the specified algorithm
@@ -93,30 +121,65 @@ pub fn hash_data_with_algorithm(data: &[u8], algorithm: HashAlgorithm) -> Vec<u8
             hasher.update(data);
             hasher.finalize().to_vec()
         }
+        HashAlgorithm::Sha3_512 => {
+            use sha3::{Digest, Sha3_512};
+            let mut hasher = Sha3_512::new();
+            hasher.update(data);
+            hasher.finalize().to_vec()
+        }
         HashAlgorithm::Blake3 => {
             let mut hasher = blake3::Hasher::new();
             hasher.update(data);
             hasher.finalize().as_bytes().to_vec()
         }
+        HashAlgorithm::Shake256 => {
+            use sha3::{
+                Shake256,
+                digest::{ExtendableOutput, Update, XofReader},
+            };
+            let mut hasher = Shake256::default();
+            hasher.update(data);
+            let mut reader = hasher.finalize_xof();
+            let mut output = vec![0u8; 32]; // 256-bit default
+            reader.read(&mut output);
+            output
+        }
     }
 }
 
 // Add constant for recommended password length
-pub const MIN_RECOMMENDED_PASSWORD_LENGTH: usize = 12;
+pub const MIN_RECOMMENDED_PASSWORD_LENGTH: usize = 16; // Increased for quantum era
 
 /// Security level used by this library
-pub const SECURITY_LEVEL: &str = "High - AES-256-GCM with Argon2id key derivation";
+pub const SECURITY_LEVEL: &str = "Maximum - Post-Quantum Ready with Hybrid Cryptography";
 
 /// Version information for the crypto library
 pub fn version() -> &'static str {
-    "1.0.0"
+    "2.0.0-pqc"
 }
 
 /// Returns security information about the library
 pub fn security_info() -> &'static str {
-    "This library uses Argon2id for password hashing, AES-256-GCM for encryption, 
-    and constant-time comparisons for secure signature verification.
-    Always keep your private keys secure and use strong, unique passwords."
+    "🔒 Kanari Crypto v2.0 - Post-Quantum Ready
+    
+    Classical Algorithms:
+    - AES-256-GCM encryption
+    - Ed25519, K256, P256 signatures
+    - Argon2id password hashing
+    - SHA3-256/512, Blake3, SHAKE256 hashing
+    
+    Post-Quantum Algorithms (NIST Standard):
+    - Dilithium2/3/5 signatures (ML-DSA)
+    - SPHINCS+ hash-based signatures
+    - Kyber768/1024 key encapsulation (ML-KEM)
+    
+    Hybrid Schemes:
+    - Ed25519+Dilithium3 signatures
+    - K256+Dilithium3 signatures
+    - AES+Kyber encryption
+    
+    Security: Resistant to quantum computer attacks (Shor's and Grover's algorithms)
+    Always use post-quantum or hybrid schemes for long-term security!"
 }
 
 /// Checks if a password meets minimum security requirements

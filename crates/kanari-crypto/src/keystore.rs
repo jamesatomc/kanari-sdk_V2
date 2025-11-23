@@ -42,6 +42,9 @@ pub enum KeystoreError {
 
     #[error("Backup error: {0}")]
     BackupError(String),
+
+    #[error("Invalid path: {0}")]
+    InvalidPath(String),
 }
 
 /// Structure representing the keystore file
@@ -115,7 +118,9 @@ impl Keystore {
     /// Save keystore to disk
     pub fn save(&mut self) -> Result<(), KeystoreError> {
         let keystore_path = get_keystore_path();
-        let keystore_dir = keystore_path.parent().unwrap();
+        let keystore_dir = keystore_path
+            .parent()
+            .ok_or_else(|| KeystoreError::InvalidPath("Invalid keystore path".to_string()))?;
 
         // Create directory if it doesn't exist
         if !keystore_dir.exists() {
@@ -126,7 +131,7 @@ impl Keystore {
         self.last_modified = Some(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .map_err(|e| KeystoreError::InvalidPath(format!("System time error: {}", e)))?
                 .as_secs(),
         );
 
@@ -254,17 +259,36 @@ impl Keystore {
 
         // Validate all encrypted data entries
         for (address, encrypted_data) in &self.keys {
-            if encrypted_data.get_ciphertext().is_empty() {
-                return Err(KeystoreError::Corrupted(format!(
-                    "Empty ciphertext for address: {}",
-                    address
-                )));
+            match encrypted_data.get_ciphertext() {
+                Ok(ciphertext) if ciphertext.is_empty() => {
+                    return Err(KeystoreError::Corrupted(format!(
+                        "Empty ciphertext for address: {}",
+                        address
+                    )));
+                }
+                Err(e) => {
+                    return Err(KeystoreError::Corrupted(format!(
+                        "Invalid ciphertext for address {}: {}",
+                        address, e
+                    )));
+                }
+                _ => {}
             }
-            if encrypted_data.get_nonce().is_empty() {
-                return Err(KeystoreError::Corrupted(format!(
-                    "Empty nonce for address: {}",
-                    address
-                )));
+
+            match encrypted_data.get_nonce() {
+                Ok(nonce) if nonce.is_empty() => {
+                    return Err(KeystoreError::Corrupted(format!(
+                        "Empty nonce for address: {}",
+                        address
+                    )));
+                }
+                Err(e) => {
+                    return Err(KeystoreError::Corrupted(format!(
+                        "Invalid nonce for address {}: {}",
+                        address, e
+                    )));
+                }
+                _ => {}
             }
         }
 

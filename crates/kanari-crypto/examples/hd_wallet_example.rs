@@ -5,8 +5,10 @@ use kanari_crypto::wallet::{Wallet, create_hd_wallet, load_wallet, save_hd_walle
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("Kanari Crypto - HD Wallet Example");
-    println!("================================");
+    println!("🔐 Kanari Crypto v2.0 - HD Wallet Example");
+    println!("==========================================");
+    println!("\nℹ️  Note: HD wallets currently support classical algorithms only.");
+    println!("   Post-quantum algorithms will be added in future versions.\n");
 
     // 1) Generate a mnemonic (for demo only)
     let mnemonic = generate_mnemonic(12)?;
@@ -37,6 +39,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 5) Load the wallet back to verify
     let loaded = load_wallet(&child_wallet.address.to_string(), password)?;
     println!("Loaded wallet from keystore: {}", loaded.address);
+
+    println!("\n✅ HD Wallet example completed successfully!");
+    println!("\n💡 Note:");
+    println!("   - Classical algorithms (Ed25519, K256, P256) support BIP39/BIP32 HD wallets");
+    println!("   - Post-quantum algorithms don't yet support HD wallet derivation");
+    println!("   - For PQC, use direct key generation: generate_keypair(CurveType::Dilithium3)");
 
     Ok(())
 }

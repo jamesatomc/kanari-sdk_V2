@@ -1,7 +1,9 @@
 //! Cryptographic key generation and management
 //!
 //! This module handles key generation for multiple curve types (K256/secp256k1,
-//! P256/secp256r1, and Ed25519), as well as key derivation from mnemonics.
+//! P256/secp256r1, Ed25519) and Post-Quantum Cryptography (Dilithium, SPHINCS+).
+//!
+//! **Quantum-Safe**: Includes NIST-standardized post-quantum algorithms.
 
 use bip39::{Language, Mnemonic};
 use kanari_types::address::Address;
@@ -23,9 +25,17 @@ use p256::{
 
 use ed25519_dalek::{SigningKey as Ed25519SigningKey, VerifyingKey as Ed25519VerifyingKey};
 
-/// Supported elliptic curve types
+// Post-Quantum Cryptography imports
+use pqcrypto_dilithium::dilithium2;
+use pqcrypto_dilithium::dilithium3;
+use pqcrypto_dilithium::dilithium5;
+use pqcrypto_sphincsplus::sphincssha2256fsimple;
+use pqcrypto_traits::sign::{PublicKey as PqcPublicKey, SecretKey as PqcSecretKey};
+
+/// Supported cryptographic algorithms (Classical + Post-Quantum)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum CurveType {
+    // Classical Elliptic Curve Cryptography (ECC)
     /// Secp256k1 curve (used by Bitcoin and Ethereum)
     #[default]
     K256,
@@ -35,6 +45,26 @@ pub enum CurveType {
 
     /// Ed25519 curve (modern, fast signature scheme)
     Ed25519,
+
+    // Post-Quantum Cryptography (PQC) - NIST Standards
+    /// Dilithium2 - Fast, ~2.5KB signatures, NIST Level 2 security
+    Dilithium2,
+
+    /// Dilithium3 - Balanced, ~4KB signatures, NIST Level 3 security (Recommended)
+    Dilithium3,
+
+    /// Dilithium5 - Maximum security, ~5KB signatures, NIST Level 5 security
+    Dilithium5,
+
+    /// SPHINCS+ SHA256-256f-robust - Hash-based, ~50KB signatures, ultra-secure
+    SphincsPlusSha256Robust,
+
+    // Hybrid Schemes (Classical + PQC for transition period)
+    /// Ed25519 + Dilithium3 hybrid (Best of both worlds)
+    Ed25519Dilithium3,
+
+    /// K256 + Dilithium3 hybrid (Bitcoin/Ethereum compatible + quantum-safe)
+    K256Dilithium3,
 }
 
 impl fmt::Display for CurveType {
@@ -43,6 +73,49 @@ impl fmt::Display for CurveType {
             CurveType::K256 => write!(f, "K256 (secp256k1)"),
             CurveType::P256 => write!(f, "P256 (secp256r1)"),
             CurveType::Ed25519 => write!(f, "Ed25519"),
+            CurveType::Dilithium2 => write!(f, "Dilithium2 (PQC Level 2)"),
+            CurveType::Dilithium3 => write!(f, "Dilithium3 (PQC Level 3)"),
+            CurveType::Dilithium5 => write!(f, "Dilithium5 (PQC Level 5)"),
+            CurveType::SphincsPlusSha256Robust => write!(f, "SPHINCS+ SHA256 (Ultra-Secure PQC)"),
+            CurveType::Ed25519Dilithium3 => write!(f, "Ed25519+Dilithium3 (Hybrid)"),
+            CurveType::K256Dilithium3 => write!(f, "K256+Dilithium3 (Hybrid)"),
+        }
+    }
+}
+
+impl CurveType {
+    /// Returns true if this is a post-quantum algorithm
+    pub fn is_post_quantum(&self) -> bool {
+        matches!(
+            self,
+            CurveType::Dilithium2
+                | CurveType::Dilithium3
+                | CurveType::Dilithium5
+                | CurveType::SphincsPlusSha256Robust
+                | CurveType::Ed25519Dilithium3
+                | CurveType::K256Dilithium3
+        )
+    }
+
+    /// Returns true if this is a hybrid scheme
+    pub fn is_hybrid(&self) -> bool {
+        matches!(
+            self,
+            CurveType::Ed25519Dilithium3 | CurveType::K256Dilithium3
+        )
+    }
+
+    /// Get security level (1-5, where 5 is highest)
+    pub fn security_level(&self) -> u8 {
+        match self {
+            CurveType::K256 | CurveType::P256 => 3,
+            CurveType::Ed25519 => 3,
+            CurveType::Dilithium2 => 4,
+            CurveType::Dilithium3 => 5,
+            CurveType::Dilithium5 => 5,
+            CurveType::SphincsPlusSha256Robust => 5,
+            CurveType::Ed25519Dilithium3 => 5,
+            CurveType::K256Dilithium3 => 5,
         }
     }
 }
@@ -92,6 +165,12 @@ pub fn generate_keypair(curve_type: CurveType) -> Result<KeyPair, KeyError> {
         CurveType::K256 => generate_k256_keypair(),
         CurveType::P256 => generate_p256_keypair(),
         CurveType::Ed25519 => generate_ed25519_keypair(),
+        CurveType::Dilithium2 => generate_dilithium2_keypair(),
+        CurveType::Dilithium3 => generate_dilithium3_keypair(),
+        CurveType::Dilithium5 => generate_dilithium5_keypair(),
+        CurveType::SphincsPlusSha256Robust => generate_sphincs_keypair(),
+        CurveType::Ed25519Dilithium3 => generate_hybrid_ed25519_dilithium3_keypair(),
+        CurveType::K256Dilithium3 => generate_hybrid_k256_dilithium3_keypair(),
     }
 }
 
@@ -184,6 +263,154 @@ fn generate_ed25519_keypair() -> Result<KeyPair, KeyError> {
     })
 }
 
+// ============================================================================
+// POST-QUANTUM CRYPTOGRAPHY (PQC) KEY GENERATION
+// ============================================================================
+
+/// Generate a Dilithium2 keypair (Fast, NIST Level 2)
+fn generate_dilithium2_keypair() -> Result<KeyPair, KeyError> {
+    let (public_key, secret_key) = dilithium2::keypair();
+
+    let public_key_bytes = public_key.as_bytes();
+    let secret_key_bytes = secret_key.as_bytes();
+
+    let hex_encoded = hex::encode(public_key_bytes);
+    let address = format!("0xpqc{}", &hex_encoded[..40]); // PQC address prefix
+    let raw_private_key = hex::encode(secret_key_bytes);
+    let private_key = format!("kanapqc{}", raw_private_key);
+
+    Ok(KeyPair {
+        private_key,
+        public_key: hex_encoded,
+        address,
+        curve_type: CurveType::Dilithium2,
+    })
+}
+
+/// Generate a Dilithium3 keypair (Balanced, NIST Level 3, Recommended)
+fn generate_dilithium3_keypair() -> Result<KeyPair, KeyError> {
+    let (public_key, secret_key) = dilithium3::keypair();
+
+    let public_key_bytes = public_key.as_bytes();
+    let secret_key_bytes = secret_key.as_bytes();
+
+    let hex_encoded = hex::encode(public_key_bytes);
+    let address = format!("0xpqc{}", &hex_encoded[..40]);
+    let raw_private_key = hex::encode(secret_key_bytes);
+    let private_key = format!("kanapqc{}", raw_private_key);
+
+    Ok(KeyPair {
+        private_key,
+        public_key: hex_encoded,
+        address,
+        curve_type: CurveType::Dilithium3,
+    })
+}
+
+/// Generate a Dilithium5 keypair (Maximum security, NIST Level 5)
+fn generate_dilithium5_keypair() -> Result<KeyPair, KeyError> {
+    let (public_key, secret_key) = dilithium5::keypair();
+
+    let public_key_bytes = public_key.as_bytes();
+    let secret_key_bytes = secret_key.as_bytes();
+
+    let hex_encoded = hex::encode(public_key_bytes);
+    let address = format!("0xpqc{}", &hex_encoded[..40]);
+    let raw_private_key = hex::encode(secret_key_bytes);
+    let private_key = format!("kanapqc{}", raw_private_key);
+
+    Ok(KeyPair {
+        private_key,
+        public_key: hex_encoded,
+        address,
+        curve_type: CurveType::Dilithium5,
+    })
+}
+
+/// Generate a SPHINCS+ keypair (Hash-based, ultra-secure)
+fn generate_sphincs_keypair() -> Result<KeyPair, KeyError> {
+    let (public_key, secret_key) = sphincssha2256fsimple::keypair();
+
+    let public_key_bytes = public_key.as_bytes();
+    let secret_key_bytes = secret_key.as_bytes();
+
+    let hex_encoded = hex::encode(public_key_bytes);
+    let address = format!("0xpqc{}", &hex_encoded[..40]);
+    let raw_private_key = hex::encode(secret_key_bytes);
+    let private_key = format!("kanapqc{}", raw_private_key);
+
+    Ok(KeyPair {
+        private_key,
+        public_key: hex_encoded,
+        address,
+        curve_type: CurveType::SphincsPlusSha256Robust,
+    })
+}
+
+// ============================================================================
+// HYBRID CRYPTOGRAPHY (Classical + PQC)
+// ============================================================================
+
+/// Generate Ed25519 + Dilithium3 hybrid keypair
+fn generate_hybrid_ed25519_dilithium3_keypair() -> Result<KeyPair, KeyError> {
+    // Generate both keypairs
+    let ed25519_pair = generate_ed25519_keypair()?;
+    let dilithium3_pair = generate_dilithium3_keypair()?;
+
+    // Combine public keys
+    let combined_public = format!("{}:{}", ed25519_pair.public_key, dilithium3_pair.public_key);
+
+    // Combine private keys
+    let ed25519_raw = extract_raw_key(&ed25519_pair.private_key);
+    let dilithium3_raw = extract_raw_key(&dilithium3_pair.private_key)
+        .strip_prefix("pqc")
+        .unwrap_or("");
+    let combined_private = format!("kanahybrid{}:{}", ed25519_raw, dilithium3_raw);
+
+    // Use hybrid address prefix
+    let address = format!(
+        "0xhybrid{}",
+        &hex::encode(&combined_public.as_bytes()[..20])
+    );
+
+    Ok(KeyPair {
+        private_key: combined_private,
+        public_key: combined_public,
+        address,
+        curve_type: CurveType::Ed25519Dilithium3,
+    })
+}
+
+/// Generate K256 + Dilithium3 hybrid keypair
+fn generate_hybrid_k256_dilithium3_keypair() -> Result<KeyPair, KeyError> {
+    // Generate both keypairs
+    let k256_pair = generate_k256_keypair()?;
+    let dilithium3_pair = generate_dilithium3_keypair()?;
+
+    // Combine public keys
+    let combined_public = format!("{}:{}", k256_pair.public_key, dilithium3_pair.public_key);
+
+    // Combine private keys
+    let k256_raw = extract_raw_key(&k256_pair.private_key);
+    let dilithium3_raw = extract_raw_key(&dilithium3_pair.private_key)
+        .strip_prefix("pqc")
+        .unwrap_or("");
+    let combined_private = format!("kanahybrid{}:{}", k256_raw, dilithium3_raw);
+
+    // Use hybrid address prefix
+    let address = format!(
+        "0xhybrid{}",
+        &hex::encode(&combined_public.as_bytes()[..20])
+    );
+
+    Ok(KeyPair {
+        private_key: combined_private,
+        public_key: combined_public,
+        address,
+        curve_type: CurveType::K256Dilithium3,
+    })
+}
+
 /// Generate a keypair from a mnemonic phrase
 pub fn keypair_from_mnemonic(
     phrase: &str,
@@ -270,6 +497,11 @@ pub fn keypair_from_mnemonic(
                 curve_type: CurveType::Ed25519,
             })
         }
+        // PQC algorithms don't support HD wallet derivation yet
+        // Fall back to random generation for now
+        _ => Err(KeyError::GenerationFailed(
+            "Post-quantum algorithms don't support BIP39 mnemonic derivation yet. Use generate_keypair() instead.".to_string()
+        )),
     }
 }
 
@@ -303,7 +535,7 @@ pub fn keypair_from_private_key(
             let formatted_private_key = if private_key.starts_with(KANARI_KEY_PREFIX) {
                 private_key.to_string()
             } else {
-                format_private_key(private_key)
+                format_private_key(raw_private_key)
             };
 
             Ok(KeyPair {
@@ -330,7 +562,7 @@ pub fn keypair_from_private_key(
             let formatted_private_key = if private_key.starts_with(KANARI_KEY_PREFIX) {
                 private_key.to_string()
             } else {
-                format_private_key(private_key)
+                format_private_key(raw_private_key)
             };
 
             Ok(KeyPair {
@@ -369,6 +601,10 @@ pub fn keypair_from_private_key(
                 curve_type: CurveType::Ed25519,
             })
         }
+        // PQC algorithms require importing raw key bytes
+        _ => Err(KeyError::GenerationFailed(
+            "Post-quantum and hybrid algorithms require specialized import methods. Use generate_keypair() instead.".to_string()
+        )),
     }
 }
 
@@ -460,15 +696,14 @@ pub fn detect_curve_type(address: &str) -> Option<CurveType> {
 pub fn generate_karix_address(
     mnemonic_length: usize,
     curve_type: CurveType,
-) -> (String, String, String) {
+) -> Result<(String, String, String), KeyError> {
     // Generate mnemonic phrase
-    let seed_phrase = generate_mnemonic(mnemonic_length).expect("Failed to generate mnemonic");
+    let seed_phrase = generate_mnemonic(mnemonic_length)?;
 
     // Generate keypair from mnemonic
-    let keypair = keypair_from_mnemonic(&seed_phrase, curve_type, "")
-        .expect("Failed to generate keypair from mnemonic");
+    let keypair = keypair_from_mnemonic(&seed_phrase, curve_type, "")?;
 
-    (keypair.private_key, keypair.address, seed_phrase)
+    Ok((keypair.private_key, keypair.address, seed_phrase))
 }
 
 /// Import a wallet from a seed phrase

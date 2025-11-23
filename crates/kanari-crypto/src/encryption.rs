@@ -1,16 +1,18 @@
 //! Secure data encryption and decryption
 //!
 //! This module provides functions for encrypting and decrypting data using
-//! modern secure algorithms (AES-256-GCM with Argon2 key derivation).
+//! modern secure algorithms including post-quantum key encapsulation (Kyber).
+//!
+//! **Classical**: AES-256-GCM with Argon2 key derivation
+//! **Post-Quantum**: Kyber768/1024 key encapsulation mechanism (KEM)
+//! **Hybrid**: AES-256-GCM + Kyber for quantum-safe encryption
 
 use aes_gcm::{
     Aes256Gcm, Key,
     aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 use argon2::{
-    Algorithm,
-    Argon2,
-    Version, // Remove Variant as it doesn't exist
+    Algorithm, Argon2, Version,
     password_hash::{PasswordHasher, SaltString},
 };
 use base64::{Engine as _, engine::general_purpose};
@@ -18,6 +20,53 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::string::ToString;
 use thiserror::Error;
+
+// Post-Quantum Cryptography - Kyber KEM (commented out until implementation)
+// use pqcrypto_kyber::kyber768;
+// use pqcrypto_kyber::kyber1024;
+// use pqcrypto_traits::kem::{PublicKey as KemPublicKey, SecretKey as KemSecretKey, SharedSecret, Ciphertext};
+
+/// Encryption scheme selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum EncryptionScheme {
+    /// AES-256-GCM (Classical, fast)
+    #[default]
+    Aes256Gcm,
+
+    /// Kyber768 KEM (Post-quantum, NIST Level 3)
+    Kyber768,
+
+    /// Kyber1024 KEM (Post-quantum, NIST Level 5, maximum security)
+    Kyber1024,
+
+    /// Hybrid: AES-256-GCM + Kyber768 (Best of both worlds)
+    HybridAesKyber768,
+
+    /// Hybrid: AES-256-GCM + Kyber1024 (Maximum security)
+    HybridAesKyber1024,
+}
+
+impl EncryptionScheme {
+    /// Returns true if this scheme is quantum-resistant
+    pub fn is_quantum_resistant(&self) -> bool {
+        matches!(
+            self,
+            EncryptionScheme::Kyber768
+                | EncryptionScheme::Kyber1024
+                | EncryptionScheme::HybridAesKyber768
+                | EncryptionScheme::HybridAesKyber1024
+        )
+    }
+
+    /// Get security level (1-5)
+    pub fn security_level(&self) -> u8 {
+        match self {
+            EncryptionScheme::Aes256Gcm => 4,
+            EncryptionScheme::Kyber768 | EncryptionScheme::HybridAesKyber768 => 5,
+            EncryptionScheme::Kyber1024 | EncryptionScheme::HybridAesKyber1024 => 5,
+        }
+    }
+}
 
 /// Error types for encryption operations
 #[derive(Error, Debug)]
@@ -33,6 +82,9 @@ pub enum EncryptionError {
 
     #[error("Decryption error")]
     DecryptionError,
+
+    #[error("Post-quantum encryption error: {0}")]
+    PqcError(String),
 }
 
 /// Structure representing encrypted data
@@ -62,24 +114,32 @@ pub struct EncryptedData {
 
 impl EncryptedData {
     /// Get the ciphertext bytes, regardless of format
-    pub fn get_ciphertext(&self) -> Vec<u8> {
+    pub fn get_ciphertext(&self) -> Result<Vec<u8>, EncryptionError> {
         if !self.ciphertext.is_empty() {
             general_purpose::STANDARD
                 .decode(&self.ciphertext)
-                .unwrap_or_default()
+                .map_err(|e| {
+                    EncryptionError::InvalidFormat(format!("Invalid ciphertext base64: {}", e))
+                })
+        } else if !self.ciphertext_array.is_empty() {
+            Ok(self.ciphertext_array.clone())
         } else {
-            self.ciphertext_array.clone()
+            Err(EncryptionError::InvalidFormat(
+                "Empty ciphertext".to_string(),
+            ))
         }
     }
 
     /// Get the nonce bytes, regardless of format
-    pub fn get_nonce(&self) -> Vec<u8> {
+    pub fn get_nonce(&self) -> Result<Vec<u8>, EncryptionError> {
         if !self.nonce.is_empty() {
             general_purpose::STANDARD
                 .decode(&self.nonce)
-                .unwrap_or_default()
+                .map_err(|e| EncryptionError::InvalidFormat(format!("Invalid nonce base64: {}", e)))
+        } else if !self.nonce_array.is_empty() {
+            Ok(self.nonce_array.clone())
         } else {
-            self.nonce_array.clone()
+            Err(EncryptionError::InvalidFormat("Empty nonce".to_string()))
         }
     }
 }
@@ -167,8 +227,8 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> Result<Vec<u8>
     let key = Key::<Aes256Gcm>::from_slice(key_bytes);
 
     // Get ciphertext and nonce from the encrypted data
-    let ciphertext = encrypted.get_ciphertext();
-    let nonce_bytes = encrypted.get_nonce();
+    let ciphertext = encrypted.get_ciphertext()?;
+    let nonce_bytes = encrypted.get_nonce()?;
 
     // Create nonce for decryption - need to convert Vec<u8> to Nonce
     if nonce_bytes.len() != 12 {

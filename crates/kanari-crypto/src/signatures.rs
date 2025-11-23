@@ -82,6 +82,10 @@ pub fn sign_message(
         CurveType::K256 => sign_message_k256(raw_key, message),
         CurveType::P256 => sign_message_p256(raw_key, message),
         CurveType::Ed25519 => sign_message_ed25519(raw_key, message),
+        // PQC and hybrid schemes need specialized handling
+        _ => Err(SignatureError::InvalidPrivateKey(
+            "Post-quantum and hybrid signatures require use of PQC-specific functions".to_string(),
+        )),
     }
 }
 
@@ -207,6 +211,11 @@ pub fn verify_signature_with_curve(
         CurveType::K256 => verify_signature_k256(address_hex, message, signature),
         CurveType::P256 => verify_signature_p256(address_hex, message, signature),
         CurveType::Ed25519 => verify_signature_ed25519(address_hex, message, signature),
+        // PQC and hybrid schemes need specialized handling
+        _ => Err(SignatureError::InvalidFormat(
+            "Post-quantum and hybrid signature verification requires PQC-specific functions"
+                .to_string(),
+        )),
     }
 }
 
