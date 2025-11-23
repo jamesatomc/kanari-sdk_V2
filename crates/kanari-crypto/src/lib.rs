@@ -79,26 +79,31 @@ pub enum HashAlgorithm {
 }
 
 /// Cryptographic hash using SHA3-256 (default)
+#[must_use]
 pub fn hash_data(data: &[u8]) -> Vec<u8> {
     hash_data_with_algorithm(data, HashAlgorithm::Sha3_256)
 }
 
 /// Cryptographic hash using SHA3-512 (quantum-resistant, 512-bit)
+#[must_use]
 pub fn hash_data_sha3_512(data: &[u8]) -> Vec<u8> {
     hash_data_with_algorithm(data, HashAlgorithm::Sha3_512)
 }
 
 /// Cryptographic hash using Blake3 (faster alternative)
+#[must_use]
 pub fn hash_data_blake3(data: &[u8]) -> Vec<u8> {
     hash_data_with_algorithm(data, HashAlgorithm::Blake3)
 }
 
 /// Cryptographic hash using SHAKE256 with 256-bit output (quantum-resistant)
+#[must_use]
 pub fn hash_data_shake256(data: &[u8]) -> Vec<u8> {
     hash_data_with_algorithm(data, HashAlgorithm::Shake256)
 }
 
 /// Cryptographic hash using SHAKE256 with custom output length
+#[must_use]
 pub fn hash_data_shake256_custom(data: &[u8], output_len: usize) -> Vec<u8> {
     use sha3::{
         Shake256,
@@ -113,6 +118,7 @@ pub fn hash_data_shake256_custom(data: &[u8], output_len: usize) -> Vec<u8> {
 }
 
 /// Cryptographic hash using the specified algorithm
+#[must_use]
 pub fn hash_data_with_algorithm(data: &[u8], algorithm: HashAlgorithm) -> Vec<u8> {
     match algorithm {
         HashAlgorithm::Sha3_256 => {
@@ -154,12 +160,14 @@ pub const MIN_RECOMMENDED_PASSWORD_LENGTH: usize = 16; // Increased for quantum 
 pub const SECURITY_LEVEL: &str = "Maximum - Post-Quantum Ready with Hybrid Cryptography";
 
 /// Version information for the crypto library
-pub fn version() -> &'static str {
+#[must_use]
+pub const fn version() -> &'static str {
     "2.0.0-pqc"
 }
 
 /// Returns security information about the library
-pub fn security_info() -> &'static str {
+#[must_use]
+pub const fn security_info() -> &'static str {
     "🔒 Kanari Crypto v2.0 - Post-Quantum Ready
     
     Classical Algorithms:
@@ -183,15 +191,29 @@ pub fn security_info() -> &'static str {
 }
 
 /// Checks if a password meets minimum security requirements
+#[must_use]
 pub fn is_password_strong(password: &str) -> bool {
     if password.len() < MIN_RECOMMENDED_PASSWORD_LENGTH {
         return false;
     }
 
-    let has_uppercase = password.chars().any(|c| c.is_uppercase());
-    let has_lowercase = password.chars().any(|c| c.is_lowercase());
-    let has_digit = password.chars().any(|c| c.is_ascii_digit());
-    let has_special = password.chars().any(|c| !c.is_alphanumeric());
+    // Use a single pass to check all conditions (more efficient and resistant to timing attacks)
+    let mut has_uppercase = false;
+    let mut has_lowercase = false;
+    let mut has_digit = false;
+    let mut has_special = false;
+
+    for c in password.chars() {
+        if c.is_uppercase() {
+            has_uppercase = true;
+        } else if c.is_lowercase() {
+            has_lowercase = true;
+        } else if c.is_ascii_digit() {
+            has_digit = true;
+        } else if !c.is_alphanumeric() {
+            has_special = true;
+        }
+    }
 
     has_uppercase && has_lowercase && has_digit && has_special
 }

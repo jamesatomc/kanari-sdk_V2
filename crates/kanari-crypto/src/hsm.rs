@@ -3,6 +3,8 @@
 //! This module provides interfaces and abstractions for integrating with
 //! Hardware Security Modules for enhanced key security.
 
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -99,17 +101,16 @@ pub trait HsmInterface {
 }
 
 /// Software-based HSM implementation (for development/testing)
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SoftwareHsm {
     connected: bool,
     keys: std::collections::HashMap<String, Vec<u8>>,
 }
 
-impl Default for SoftwareHsm {
-    fn default() -> Self {
-        Self {
-            connected: false,
-            keys: std::collections::HashMap::new(),
+impl Drop for SoftwareHsm {
+    fn drop(&mut self) {
+        for key in self.keys.values_mut() {
+            crate::signatures::secure_clear(key);
         }
     }
 }
@@ -134,18 +135,25 @@ impl HsmInterface for SoftwareHsm {
         self.connected
     }
 
-    fn generate_key(&mut self, key_id: &str, _algorithm: &str) -> Result<Vec<u8>, HsmError> {
+    fn generate_key(&mut self, key_id: &str, algorithm: &str) -> Result<Vec<u8>, HsmError> {
         if !self.connected {
             return Err(HsmError::NotAvailable("HSM not connected".to_string()));
         }
 
-        // Generate a random key (32 bytes for demonstration)
-        use rand::RngCore;
-        let mut key = vec![0u8; 32];
-        rand::rngs::OsRng.fill_bytes(&mut key);
+        // Only support Ed25519 for now in Software HSM
+        if algorithm != "Ed25519" {
+            return Err(HsmError::UnsupportedOperation(format!(
+                "Algorithm {} not supported by SoftwareHSM",
+                algorithm
+            )));
+        }
 
-        self.keys.insert(key_id.to_string(), key.clone());
-        Ok(key)
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let verifying_key = VerifyingKey::from(&signing_key);
+
+        self.keys
+            .insert(key_id.to_string(), signing_key.to_bytes().to_vec());
+        Ok(verifying_key.to_bytes().to_vec())
     }
 
     fn sign(&self, key_id: &str, data: &[u8]) -> Result<Vec<u8>, HsmError> {
@@ -153,26 +161,44 @@ impl HsmInterface for SoftwareHsm {
             return Err(HsmError::NotAvailable("HSM not connected".to_string()));
         }
 
-        let _key = self
+        let key_bytes = self
             .keys
             .get(key_id)
             .ok_or_else(|| HsmError::KeyNotFound(key_id.to_string()))?;
 
-        // Placeholder: In real implementation, use the key to sign
-        Ok(data.to_vec())
+        let signing_key = SigningKey::from_bytes(
+            key_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| HsmError::InvalidConfiguration("Invalid key length".to_string()))?,
+        );
+        let signature = signing_key.sign(data);
+
+        Ok(signature.to_bytes().to_vec())
     }
 
-    fn verify(&self, key_id: &str, _data: &[u8], _signature: &[u8]) -> Result<bool, HsmError> {
+    fn verify(&self, key_id: &str, data: &[u8], signature: &[u8]) -> Result<bool, HsmError> {
         if !self.connected {
             return Err(HsmError::NotAvailable("HSM not connected".to_string()));
         }
 
-        if !self.keys.contains_key(key_id) {
-            return Err(HsmError::KeyNotFound(key_id.to_string()));
-        }
+        let key_bytes = self
+            .keys
+            .get(key_id)
+            .ok_or_else(|| HsmError::KeyNotFound(key_id.to_string()))?;
 
-        // Placeholder: In real implementation, verify signature
-        Ok(true)
+        let signing_key = SigningKey::from_bytes(
+            key_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| HsmError::InvalidConfiguration("Invalid key length".to_string()))?,
+        );
+        let verifying_key = VerifyingKey::from(&signing_key);
+
+        let signature = Signature::from_slice(signature)
+            .map_err(|e| HsmError::OperationFailed(format!("Invalid signature format: {}", e)))?;
+
+        Ok(verifying_key.verify(data, &signature).is_ok())
     }
 
     fn delete_key(&mut self, key_id: &str) -> Result<(), HsmError> {
@@ -200,13 +226,20 @@ impl HsmInterface for SoftwareHsm {
             return Err(HsmError::NotAvailable("HSM not connected".to_string()));
         }
 
-        let key = self
+        let key_bytes = self
             .keys
             .get(key_id)
             .ok_or_else(|| HsmError::KeyNotFound(key_id.to_string()))?;
 
-        // Placeholder: In real implementation, derive public key
-        Ok(key.clone())
+        let signing_key = SigningKey::from_bytes(
+            key_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| HsmError::InvalidConfiguration("Invalid key length".to_string()))?,
+        );
+        let verifying_key = VerifyingKey::from(&signing_key);
+
+        Ok(verifying_key.to_bytes().to_vec())
     }
 }
 
@@ -237,21 +270,23 @@ mod tests {
             enabled: true,
         };
 
-        hsm.connect(&config).unwrap();
+        hsm.connect(&config).expect("Failed to connect to HSM");
         assert!(hsm.is_connected());
 
-        let public_key = hsm.generate_key("test-key", "Ed25519").unwrap();
+        let public_key = hsm
+            .generate_key("test-key", "Ed25519")
+            .expect("Failed to generate key");
         assert!(!public_key.is_empty());
 
-        let keys = hsm.list_keys().unwrap();
+        let keys = hsm.list_keys().expect("Failed to list keys");
         assert_eq!(keys.len(), 1);
         assert_eq!(keys[0], "test-key");
 
-        hsm.delete_key("test-key").unwrap();
-        let keys = hsm.list_keys().unwrap();
+        hsm.delete_key("test-key").expect("Failed to delete key");
+        let keys = hsm.list_keys().expect("Failed to list keys after deletion");
         assert_eq!(keys.len(), 0);
 
-        hsm.disconnect().unwrap();
+        hsm.disconnect().expect("Failed to disconnect HSM");
         assert!(!hsm.is_connected());
     }
 }

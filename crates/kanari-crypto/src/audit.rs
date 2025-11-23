@@ -142,7 +142,7 @@ impl AuditEntry {
     pub fn new(event: SecurityEvent) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         Self {
@@ -347,7 +347,9 @@ mod tests {
             .with_resource("0x123")
             .with_success(true);
 
-        let json = entry.to_json_line().unwrap();
+        let json = entry
+            .to_json_line()
+            .expect("Failed to serialize audit entry");
         assert!(json.contains("WalletCreated"));
         assert!(json.contains("0x123"));
     }

@@ -63,7 +63,7 @@ impl BackupMetadata {
     pub fn new(key_count: usize, has_mnemonic: bool, checksum: String) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         Self {
@@ -97,16 +97,17 @@ pub struct BackupManager {
     backup_dir: PathBuf,
 }
 
+impl Default for BackupManager {
+    fn default() -> Self {
+        let mut backup_dir = kanari_common::get_kari_dir();
+        backup_dir.push("backups");
+        Self { backup_dir }
+    }
+}
+
 impl BackupManager {
     /// Create new backup manager
     pub fn new(backup_dir: PathBuf) -> Self {
-        Self { backup_dir }
-    }
-
-    /// Create default backup manager
-    pub fn default() -> Self {
-        let mut backup_dir = kanari_common::get_kari_dir();
-        backup_dir.push("backups");
         Self { backup_dir }
     }
 
@@ -158,7 +159,7 @@ impl BackupManager {
         // Generate backup filename with timestamp
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
         let filename = format!("keystore_backup_{}.kbak", timestamp);
         let backup_path = self.backup_dir.join(&filename);
@@ -243,17 +244,15 @@ impl BackupManager {
             let entry = entry?;
             let path = entry.path();
 
-            if path.extension().and_then(|s| s.to_str()) == Some("kbak") {
-                // Try to read metadata without decrypting
-                if let Ok(data) = fs::read_to_string(&path) {
-                    if let Ok(backup) = serde_json::from_str::<EncryptedBackup>(&data) {
-                        backups.push(BackupInfo {
-                            path: path.clone(),
-                            metadata: backup.metadata,
-                            file_size: entry.metadata()?.len(),
-                        });
-                    }
-                }
+            if path.extension().and_then(|s| s.to_str()) == Some("kbak")
+                && let Ok(data) = fs::read_to_string(&path)
+                && let Ok(backup) = serde_json::from_str::<EncryptedBackup>(&data)
+            {
+                backups.push(BackupInfo {
+                    path: path.clone(),
+                    metadata: backup.metadata,
+                    file_size: entry.metadata()?.len(),
+                });
             }
         }
 

@@ -73,7 +73,7 @@ impl KeyMetadata {
     pub fn new(key_id: String) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         Self {
@@ -89,7 +89,7 @@ impl KeyMetadata {
     pub fn age_days(&self) -> u64 {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         let age_seconds = now - self.created_at;
@@ -101,7 +101,7 @@ impl KeyMetadata {
         self.last_rotated_at.map(|last_rotated| {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or(std::time::Duration::from_secs(0))
                 .as_secs();
 
             let age_seconds = now - last_rotated;
@@ -117,10 +117,10 @@ impl KeyMetadata {
         }
 
         // Check if minimum rotation interval has passed since last rotation
-        if let Some(hours_since) = self.hours_since_last_rotation() {
-            if hours_since < policy.min_rotation_interval_hours {
-                return false;
-            }
+        if let Some(hours_since) = self.hours_since_last_rotation()
+            && hours_since < policy.min_rotation_interval_hours
+        {
+            return false;
         }
 
         self.rotation_due
@@ -135,7 +135,7 @@ impl KeyMetadata {
     pub fn record_rotation(&mut self) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or(std::time::Duration::from_secs(0))
             .as_secs();
 
         self.last_rotated_at = Some(now);

@@ -172,13 +172,15 @@ pub fn encrypt_data(data: &[u8], password: &str) -> Result<EncryptedData, Encryp
     let salt = SaltString::generate(&mut OsRng);
 
     // Derive a cryptographic key from the password
-    let params = argon2_params();
+    let params = argon2_params()?;
     let password_hash = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| EncryptionError::KeyDerivationError(e.to_string()))?;
 
     // Fix for the temporary value dropped error - bind to variable first
-    let hash = password_hash.hash.unwrap();
+    let hash = password_hash.hash.ok_or_else(|| {
+        EncryptionError::KeyDerivationError("Argon2 hash output is missing".to_string())
+    })?;
     let key_bytes = hash.as_bytes();
     #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(key_bytes);
@@ -215,13 +217,15 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> Result<Vec<u8>
         .map_err(|e| EncryptionError::InvalidFormat(e.to_string()))?;
 
     // Derive key from password and salt
-    let params = argon2_params();
+    let params = argon2_params()?;
     let password_hash = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| EncryptionError::KeyDerivationError(e.to_string()))?;
 
     // Fix for the temporary value dropped error
-    let hash = password_hash.hash.unwrap();
+    let hash = password_hash.hash.ok_or_else(|| {
+        EncryptionError::KeyDerivationError("Argon2 hash output is missing".to_string())
+    })?;
     let key_bytes = hash.as_bytes();
     #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(key_bytes);
@@ -249,14 +253,14 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> Result<Vec<u8>
 }
 
 // Helper function to get consistent argon2 parameters
-fn argon2_params() -> argon2::Params {
+fn argon2_params() -> Result<argon2::Params, EncryptionError> {
     argon2::Params::new(
         19456, // Memory cost (19 MB)
         2,     // Time cost (2 iterations)
         1,     // Parallelism (1 thread)
         None,  // No Output::BLOCK_SIZE in this version
     )
-    .expect("Failed to create Argon2 parameters")
+    .map_err(|e| EncryptionError::KeyDerivationError(format!("Invalid Argon2 parameters: {}", e)))
 }
 
 /// Upgrade legacy encrypted data to new base64 format

@@ -63,7 +63,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 /// Zero out sensitive data in memory
 pub fn secure_clear(data: &mut [u8]) {
     for byte in data.iter_mut() {
-        *byte = 0;
+        // Use volatile write to prevent compiler optimization
+        unsafe {
+            std::ptr::write_volatile(byte, 0);
+        }
     }
 }
 

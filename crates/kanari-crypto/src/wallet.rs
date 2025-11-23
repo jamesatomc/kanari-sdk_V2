@@ -169,7 +169,7 @@ pub fn save_wallet(
     let formatted_private_key = if private_key.starts_with("kanari") {
         private_key.to_string()
     } else {
-        format!("kanari{}", private_key)
+        format!("kanari{private_key}")
     };
 
     // Create wallet object
@@ -186,7 +186,7 @@ pub fn save_wallet(
 
     // Compress data before encryption to reduce ciphertext size
     let compressed_data = compression::compress_data(toml_string.as_bytes())
-        .map_err(|e| WalletError::SerializationError(format!("Compression error: {}", e)))?;
+        .map_err(|e| WalletError::SerializationError(format!("Compression error: {e}")))?;
 
     // Encrypt the wallet data
     let encrypted_data = encryption::encrypt_data(&compressed_data, password)
@@ -241,14 +241,12 @@ pub fn load_wallet(address: &str, password: &str) -> Result<Wallet, WalletError>
                     decrypted
                 } else {
                     return Err(WalletError::DecryptionError(format!(
-                        "Decompression failed and data isn't valid TOML: {}",
-                        e
+                        "Decompression failed and data isn't valid TOML: {e}"
                     )));
                 }
             } else {
                 return Err(WalletError::DecryptionError(format!(
-                    "Failed to decompress or parse wallet data: {}",
-                    e
+                    "Failed to decompress or parse wallet data: {e}"
                 )));
             }
         }
@@ -314,7 +312,7 @@ pub fn create_hd_wallet(
 
     // Convert the derived address string into an Address type
     let address = Address::from_str(&key_pair.address)
-        .map_err(|e| WalletError::SerializationError(format!("Invalid derived address: {}", e)))?;
+        .map_err(|e| WalletError::SerializationError(format!("Invalid derived address: {e}")))?;
 
     // Construct Wallet; store the derivation path in the seed_phrase field
     let wallet = Wallet::new(
@@ -364,7 +362,7 @@ pub fn save_mnemonic(
 
     // Compress mnemonic before encryption
     let compressed_data = compression::compress_data(mnemonic.as_bytes())
-        .map_err(|e| WalletError::SerializationError(format!("Compression error: {}", e)))?;
+        .map_err(|e| WalletError::SerializationError(format!("Compression error: {e}")))?;
 
     // Encrypt the mnemonic
     let encrypted_data = encryption::encrypt_data(&compressed_data, password)
@@ -400,13 +398,12 @@ pub fn load_mnemonic(password: &str) -> Result<String, WalletError> {
         .map_err(|_| WalletError::InvalidPassword)?;
 
     // Decompress the decrypted data
-    let decompressed_data = compression::decompress_data(&decrypted).map_err(|e| {
-        WalletError::DecryptionError(format!("Failed to decompress mnemonic: {}", e))
-    })?;
+    let decompressed_data = compression::decompress_data(&decrypted)
+        .map_err(|e| WalletError::DecryptionError(format!("Failed to decompress mnemonic: {e}")))?;
 
     // Convert to string
     String::from_utf8(decompressed_data)
-        .map_err(|e| WalletError::DecryptionError(format!("Invalid UTF-8 in mnemonic: {}", e)))
+        .map_err(|e| WalletError::DecryptionError(format!("Invalid UTF-8 in mnemonic: {e}")))
 }
 
 /// Get addresses derived from mnemonic
@@ -417,12 +414,9 @@ pub fn get_mnemonic_addresses() -> Result<Vec<String>, WalletError> {
 }
 
 /// Check if mnemonic exists in keystore
+#[must_use]
 pub fn check_mnemonic_exists() -> bool {
-    if let Ok(keystore) = Keystore::load() {
-        keystore.has_mnemonic()
-    } else {
-        false
-    }
+    Keystore::load().is_ok_and(|keystore| keystore.has_mnemonic())
 }
 
 /// Remove mnemonic from keystore
@@ -485,12 +479,9 @@ pub fn clear_session_keys() -> Result<(), WalletError> {
 // =========================================================================
 
 /// Check if any wallets exist
+#[must_use]
 pub fn check_wallet_exists() -> bool {
-    if let Ok(keystore) = Keystore::load() {
-        !keystore.list_wallets().is_empty()
-    } else {
-        false
-    }
+    Keystore::load().is_ok_and(|keystore| !keystore.list_wallets().is_empty())
 }
 
 /// List all available wallets with selection status
@@ -513,7 +504,7 @@ pub fn list_wallet_files() -> Result<Vec<(String, bool)>, io::Error> {
 
             Ok(wallets)
         }
-        Err(e) => Err(io::Error::other(format!("Failed to load keystore: {}", e))),
+        Err(e) => Err(io::Error::other(format!("Failed to load keystore: {e}"))),
     }
 }
 
@@ -526,29 +517,18 @@ pub fn set_selected_wallet(wallet_address: &str) -> io::Result<()> {
     update_active_address(&formatted_address)
 }
 
-/// Helper function to update active_address in kanari.yaml
+/// Helper function to update `active_address` in kanari.yaml
 fn update_active_address(address: &str) -> io::Result<()> {
-    // Try to load kanari config
-    match load_kanari_config() {
-        Ok(mut kanari_config) => {
-            if let Some(mapping) = kanari_config.as_mapping_mut() {
-                mapping.insert(
-                    Value::String("active_address".to_string()),
-                    Value::String(address.to_string()),
-                );
-                save_kanari_config(&kanari_config)
-            } else {
-                // Create mapping if none exists
-                let mut mapping = Mapping::new();
-                mapping.insert(
-                    Value::String("active_address".to_string()),
-                    Value::String(address.to_string()),
-                );
-                save_kanari_config(&Value::Mapping(mapping))
-            }
-        }
-        Err(_) => {
-            // If kanari config doesn't exist or load, create it
+    // Try to load kanari config - use if let instead of match for single pattern
+    if let Ok(mut kanari_config) = load_kanari_config() {
+        if let Some(mapping) = kanari_config.as_mapping_mut() {
+            mapping.insert(
+                Value::String("active_address".to_string()),
+                Value::String(address.to_string()),
+            );
+            save_kanari_config(&kanari_config)
+        } else {
+            // Create mapping if none exists
             let mut mapping = Mapping::new();
             mapping.insert(
                 Value::String("active_address".to_string()),
@@ -556,10 +536,19 @@ fn update_active_address(address: &str) -> io::Result<()> {
             );
             save_kanari_config(&Value::Mapping(mapping))
         }
+    } else {
+        // If kanari config doesn't exist or load, create it
+        let mut mapping = Mapping::new();
+        mapping.insert(
+            Value::String("active_address".to_string()),
+            Value::String(address.to_string()),
+        );
+        save_kanari_config(&Value::Mapping(mapping))
     }
 }
 
 /// Get the currently selected wallet from configuration
+#[must_use]
 pub fn get_selected_wallet() -> Option<String> {
     // Only use kanari config
     if let Ok(kanari_config) = load_kanari_config()
