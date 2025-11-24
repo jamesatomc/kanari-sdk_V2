@@ -14,7 +14,8 @@ module kanari_system::transfer {
         amount: u64,
     }
 
-    /// Create a transfer record with validation
+    /// Create a transfer record with full validation
+    /// Validates: amount > 0 AND from != to
     public fun create_transfer(from: address, to: address, amount: u64): Transfer {
         assert!(amount > 0, ERR_INVALID_AMOUNT);
         assert!(from != to, ERR_SAME_ADDRESS);

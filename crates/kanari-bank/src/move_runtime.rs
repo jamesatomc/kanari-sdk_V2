@@ -140,7 +140,8 @@ impl MoveRuntime {
                     if !results.is_empty() {
                         // Deserialize bool result
                         let is_valid: bool = bcs::from_bytes(&results[0])?;
-                        return Ok(is_valid && from != to);
+                        // Note: from != to is now validated by Move module
+                        return Ok(is_valid);
                     }
                 }
                 Err(_) => {
@@ -150,6 +151,7 @@ impl MoveRuntime {
         }
         
         // Fallback: Simple validation if module not loaded
+        // Note: In production, consider rejecting if Move module is required
         Ok(amount > 0 && from != to)
     }
 

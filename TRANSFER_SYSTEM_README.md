@@ -26,6 +26,7 @@ kanari-cp/
 ## คุณสมบัติหลัก
 
 ### 1. Coin Module (`coin.move`)
+
 - **Account Management**: สร้างและจัดการบัญชีผู้ใช้
 - **Minting/Burning**: สร้างและทำลาย tokens
 - **Deposit/Withdraw**: ฝากและถอนเงิน
@@ -33,6 +34,7 @@ kanari-cp/
 - **Split/Join**: แบ่งและรวม coins
 
 ### 2. Transfer Module (`transfer.move`)
+
 - **Escrow**: ฝากเงินแบบมีเงื่อนไข สามารถยกเลิกได้
 - **Scheduled Transfer**: โอนเงินตามเวลาที่กำหนด
 - **Stream Transfer**: โอนเงินแบบค่อยๆ ปล่อยตามเวลา
@@ -40,11 +42,13 @@ kanari-cp/
 - **Multi-Signature**: โอนเงินที่ต้องการลายเซ็นหลายคน
 
 ### 3. Kanari Bank CLI (`kanari-bank`)
+
 CLI application สำหรับจัดการบัญชีและโอนเงิน
 
 ## การติดตั้งและใช้งาน
 
 ### ข้อกำหนดเบื้องต้น
+
 - Rust (1.70+)
 - Move CLI (IOTA/Sui version)
 - Git
@@ -63,16 +67,19 @@ cargo build --release
 ### คำสั่งพื้นฐาน
 
 #### 1. สร้างบัญชี
+
 ```powershell
 cargo run --bin kanari-bank -- create-account --address 0x1234567890abcdef
 ```
 
 #### 2. Mint เหรียญ
+
 ```powershell
 cargo run --bin kanari-bank -- mint --amount 1000 --recipient 0x1234567890abcdef
 ```
 
 #### 3. โอนเงิน
+
 ```powershell
 cargo run --bin kanari-bank -- transfer `
     --from 0x1234567890abcdef `
@@ -81,11 +88,13 @@ cargo run --bin kanari-bank -- transfer `
 ```
 
 #### 4. ตรวจสอบยอดเงิน
+
 ```powershell
 cargo run --bin kanari-bank -- balance --address 0x1234567890abcdef
 ```
 
 #### 5. สร้าง Escrow
+
 ```powershell
 cargo run --bin kanari-bank -- escrow `
     --from 0x1234567890abcdef `
@@ -94,6 +103,7 @@ cargo run --bin kanari-bank -- escrow `
 ```
 
 #### 6. โอนเงินแบบ Batch
+
 ```powershell
 cargo run --bin kanari-bank -- batch-transfer `
     --from 0x1234567890abcdef `
@@ -104,17 +114,20 @@ cargo run --bin kanari-bank -- batch-transfer `
 ## การ Build และ Test Move Modules
 
 ### Compile Move contracts
+
 ```powershell
 cd crates/packages/system
 iota move build
 ```
 
 ### Run Move tests
+
 ```powershell
 iota move test
 ```
 
 ### Run specific test
+
 ```powershell
 iota move test coin_tests
 iota move test transfer_tests
@@ -123,13 +136,17 @@ iota move test transfer_tests
 ## Architecture
 
 ### Move Smart Contracts
+
 Move modules ทำงานบน IOTA/Sui blockchain โดยใช้:
+
 - **Objects**: สำหรับเก็บ state (Account, Escrow, etc.)
 - **Capabilities**: สำหรับควบคุมการ mint/burn
 - **Events**: สำหรับ tracking การทำธุรกรรม
 
 ### Rust Integration
+
 Rust CLI เชื่อมต่อกับ Move VM ผ่าน:
+
 - `move-core-types`: type definitions
 - `move-vm-runtime`: VM execution
 - Local state management
@@ -137,6 +154,7 @@ Rust CLI เชื่อมต่อกับ Move VM ผ่าน:
 ## ตัวอย่างการใช้งาน
 
 ### Example 1: Basic Transfer
+
 ```rust
 // Create accounts
 kanari-bank create-account --address 0xAlice
@@ -154,6 +172,7 @@ kanari-bank balance --address 0xBob    // 500
 ```
 
 ### Example 2: Scheduled Transfer (ใน Move)
+
 ```move
 // Create scheduled transfer that unlocks after 1 day
 let coin = coin::mint(&mut treasury_cap, 1000, ctx);
@@ -173,6 +192,7 @@ let claimed_coin = transfer::claim_scheduled_transfer(
 ```
 
 ### Example 3: Stream Transfer
+
 ```move
 // Stream 1000 coins over 10 days
 let stream = transfer::create_stream_transfer(
@@ -200,17 +220,20 @@ let claimed = transfer::claim_stream(&mut stream, clock, ctx);
 ## Testing
 
 ### Unit Tests (Move)
+
 ```powershell
 cd crates/packages/system
 iota move test --coverage
 ```
 
 ### Integration Tests (Rust)
+
 ```powershell
 cargo test --package kanari-bank
 ```
 
 ### Run all tests
+
 ```powershell
 # Move tests
 cd crates/packages/system ; iota move test
@@ -222,12 +245,14 @@ cargo test --workspace
 ## การพัฒนาต่อ
 
 ### เพิ่ม Feature ใหม่
+
 1. เพิ่มฟังก์ชันใน Move module (`sources/*.move`)
 2. เขียน tests (`tests/*.move`)
 3. อัปเดต Rust CLI (`kanari-bank/src/main.rs`)
 4. Build และ test
 
 ### Roadmap
+
 - [ ] Multi-signature transfers
 - [ ] Governance module
 - [ ] Staking rewards
@@ -246,6 +271,7 @@ Kanari Development Team
 ## Support
 
 For issues and questions:
+
 - GitHub Issues: <repository-url>/issues
 - Documentation: ./docs/
 

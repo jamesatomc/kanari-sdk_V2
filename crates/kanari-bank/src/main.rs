@@ -138,6 +138,13 @@ fn main() -> Result<()> {
     let mut state = MoveVMState::load()?;
     let mut runtime = MoveRuntime::new()?;
 
+    // Auto-load Move module for CLI mode
+    let default_module_path = "crates/packages/kanari-system/build/KanariSystem/bytecode_modules/transfer.mv";
+    if std::path::Path::new(default_module_path).exists() {
+        if let Ok(module_bytes) = fs::read(default_module_path) {
+            let _ = runtime.load_module(module_bytes);
+        }
+    }
 
     match cli.command {
         Commands::CreateWallet { password, curve, words } => {
