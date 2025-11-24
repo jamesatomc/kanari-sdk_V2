@@ -4,7 +4,7 @@ version = "0.0.1"
 
 [dependencies]
 # Use local Move standard library
-MoveStdlib = { local = "../../../third_party/move/crates/move-stdlib" }
+MoveStdlib = { local = "../move-stdlib" }
 
 [addresses]
 system = "0x2"

@@ -48,7 +48,7 @@ mod tests {
         let module_id = SystemModules::get_transfer_module_id();
         assert!(module_id.is_ok());
         let module_id = module_id.unwrap();
-        assert_eq!(module_id.name().as_str(), "simple_transfer");
+        assert_eq!(module_id.name().as_str(), "transfer");
     }
 
     #[test]
