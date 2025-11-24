@@ -10,6 +10,8 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_types::gas::UnmeteredGasMeter;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use kanari_types::transfer::TransferModule;
+use bcs;
 
 /// Simple storage implementation for Move VM
 pub struct SimpleStorage {
@@ -113,95 +115,119 @@ impl MoveRuntime {
         function_name: &str,
         _ty_args: Vec<TypeTag>,
         args: Vec<Vec<u8>>,
-    ) -> Result<()> {
+    ) -> Result<Vec<Vec<u8>>> {
         // Create a new session with our storage
         let mut session = self.vm.new_session(&self.storage);
         
         let function_name = Identifier::new(function_name)
             .context("Invalid function name")?;
 
-        // Execute the function (simplified for now without type args)
-        let _return_values = session
+        // Execute the function
+        let return_values = session
             .execute_function_bypass_visibility(
                 module_id,
                 &function_name,
-                vec![], // Empty type args for now
+                vec![], // Type args conversion is complex, use empty for now
                 args,
                 &mut UnmeteredGasMeter,
             )
             .context("Failed to execute function")?;
 
-        Ok(())
+        // Extract just the byte vectors from the return values
+        let results = return_values.return_values
+            .into_iter()
+            .map(|(bytes, _layout)| bytes)
+            .collect();
+
+        Ok(results)
     }
 
-    /// Validate transfer using Move VM
+    /// Validate transfer using Move VM by calling Move function
     pub fn validate_transfer(&mut self, from: u64, to: u64, amount: u64) -> Result<bool> {
-        // For now, just check if amount is valid using Move logic
-        // In real implementation, this would call Move function
+        // Try to call Move function if module is loaded
+        let module_id = TransferModule::get_module_id()?;
         
-        // Simple validation: amount must be > 0
-        Ok(amount > 0 && from != to)
-    }
+        // Check if module is loaded
+        if self.storage.modules.contains_key(&module_id) {
+            // Serialize arguments
+            let args = vec![
+                bcs::to_bytes(&amount)?,
+            ];
 
-    /// Get module ID for system::simple_transfer
-    pub fn get_transfer_module_id() -> Result<ModuleId> {
-        let addr = AccountAddress::from_hex_literal("0x1")?;
-        let name = Identifier::new("simple_transfer")?;
-        Ok(ModuleId::new(addr, name))
-    }
-}
-
-/// Helper to compile Move source files
-pub fn compile_move_package(package_path: PathBuf) -> Result<Vec<Vec<u8>>> {
-    use std::process::Command;
-    
-    // Check if iota move is available
-    let output = Command::new("iota")
-        .args(&["move", "build", "--path", package_path.to_str().unwrap()])
-        .output()
-        .context("Failed to execute iota move build")?;
-
-    if !output.status.success() {
-        anyhow::bail!(
-            "Move compilation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-
-    // Read compiled modules from build directory
-    let build_dir = package_path.join("build");
-    let mut compiled_modules = Vec::new();
-
-    // Look for .mv files in build directory
-    if build_dir.exists() {
-        for entry in std::fs::read_dir(build_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            
-            if path.is_dir() {
-                // Look in bytecode_modules subdirectory
-                let bytecode_dir = path.join("bytecode_modules");
-                if bytecode_dir.exists() {
-                    for module_entry in std::fs::read_dir(bytecode_dir)? {
-                        let module_entry = module_entry?;
-                        let module_path = module_entry.path();
-                        
-                        if module_path.extension().and_then(|s| s.to_str()) == Some("mv") {
-                            let module_bytes = std::fs::read(&module_path)?;
-                            compiled_modules.push(module_bytes);
-                        }
+            // Call is_valid_amount function
+            match self.execute_function(
+                AccountAddress::ZERO,
+                &module_id,
+                "is_valid_amount",
+                vec![],
+                args,
+            ) {
+                Ok(results) => {
+                    if !results.is_empty() {
+                        // Deserialize bool result
+                        let is_valid: bool = bcs::from_bytes(&results[0])?;
+                        return Ok(is_valid && from != to);
                     }
+                }
+                Err(_) => {
+                    // Fallback to simple validation if Move call fails
                 }
             }
         }
+        
+        // Fallback: Simple validation if module not loaded
+        Ok(amount > 0 && from != to)
     }
 
-    if compiled_modules.is_empty() {
-        anyhow::bail!("No compiled modules found");
+    /// Create a transfer record using Move VM
+    pub fn create_transfer_record(&mut self, from: u64, to: u64, amount: u64) -> Result<Vec<u8>> {
+        let module_id = TransferModule::get_module_id()?;
+        
+        // Serialize arguments
+        let args = vec![
+            bcs::to_bytes(&from)?,
+            bcs::to_bytes(&to)?,
+            bcs::to_bytes(&amount)?,
+        ];
+
+        // Call create_transfer function
+        let results = self.execute_function(
+            AccountAddress::ZERO,
+            &module_id,
+            "create_transfer",
+            vec![],
+            args,
+        )?;
+
+        if results.is_empty() {
+            anyhow::bail!("No return value from create_transfer");
+        }
+
+        Ok(results[0].clone())
     }
 
-    Ok(compiled_modules)
+    /// Get transfer amount from transfer record
+    pub fn get_transfer_amount(&mut self, transfer_bytes: Vec<u8>) -> Result<u64> {
+        let module_id = TransferModule::get_module_id()?;
+        
+        // Call get_amount function
+        let results = self.execute_function(
+            AccountAddress::ZERO,
+            &module_id,
+            "get_amount",
+            vec![],
+            vec![transfer_bytes],
+        )?;
+
+        if results.is_empty() {
+            anyhow::bail!("No return value from get_amount");
+        }
+
+        let amount: u64 = bcs::from_bytes(&results[0])?;
+        Ok(amount)
+    }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -211,5 +237,25 @@ mod tests {
     fn test_move_runtime_creation() {
         let runtime = MoveRuntime::new();
         assert!(runtime.is_ok());
+    }
+
+    #[test]
+    fn test_validate_transfer_without_module() {
+        let mut runtime = MoveRuntime::new().unwrap();
+        
+        // Test with fallback validation (no module loaded)
+        let result = runtime.validate_transfer(100, 200, 500);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+        
+        // Test with zero amount
+        let result = runtime.validate_transfer(100, 200, 0);
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+        
+        // Test with same address
+        let result = runtime.validate_transfer(100, 100, 500);
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
     }
 }

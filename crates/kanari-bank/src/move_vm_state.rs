@@ -1,9 +1,10 @@
-use anyhow::{Result, Context};
+use anyhow::Result;
 use move_core_types::account_address::AccountAddress;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 use crate::move_runtime::MoveRuntime;
+use kanari_types::transfer::{TransferRecord, address_to_u64};
 
 /// State manager that uses Move VM for execution
 #[derive(Serialize, Deserialize)]
@@ -12,14 +13,6 @@ pub struct MoveVMState {
     accounts: HashMap<String, u64>,
     /// Transfer history
     transfers: Vec<TransferRecord>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct TransferRecord {
-    pub from: String,
-    pub to: String,
-    pub amount: u64,
-    pub timestamp: u64,
 }
 
 impl MoveVMState {
@@ -102,21 +95,29 @@ impl MoveVMState {
             anyhow::bail!("Transfer validation failed");
         }
 
+        // Try to create transfer record using Move VM
+        match runtime.create_transfer_record(from_u64, to_u64, amount) {
+            Ok(transfer_bytes) => {
+                // Verify the transfer amount from Move VM
+                if let Ok(move_amount) = runtime.get_transfer_amount(transfer_bytes) {
+                    if move_amount != amount {
+                        anyhow::bail!("Amount mismatch: expected {}, got {} from Move VM", amount, move_amount);
+                    }
+                    println!("✓ Move VM validated transfer: {} → {} amount: {}", from_u64, to_u64, move_amount);
+                }
+            }
+            Err(e) => {
+                println!("⚠ Move VM not available, using fallback validation: {}", e);
+            }
+        }
+
         // Update local state
         let to_balance = self.get_balance(&to);
         self.set_balance(from, from_balance - amount);
         self.set_balance(to, to_balance + amount);
 
         // Record transfer
-        self.transfers.push(TransferRecord {
-            from: format!("{}", from),
-            to: format!("{}", to),
-            amount,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        });
+        self.transfers.push(TransferRecord::from_addresses(from, to, amount));
 
         Ok(())
     }
@@ -130,14 +131,4 @@ impl MoveVMState {
     pub fn transfers(&self) -> &Vec<TransferRecord> {
         &self.transfers
     }
-}
-
-/// Convert AccountAddress to u64 for Move VM (simplified)
-fn address_to_u64(addr: &AccountAddress) -> u64 {
-    let bytes = addr.to_vec();
-    let mut result = 0u64;
-    for (i, &byte) in bytes.iter().rev().take(8).enumerate() {
-        result |= (byte as u64) << (i * 8);
-    }
-    result
 }

@@ -97,7 +97,7 @@ pub fn compile_simple_package(package_dir: &Path) -> Result<Vec<Vec<u8>>> {
     );
     named_addresses.insert(
         Symbol::from("system"), 
-        NumericalAddress::parse_str("0x1").map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?
+        NumericalAddress::parse_str("0x2").map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?
     );
 
     println!("  Found {} source files", source_files.len());

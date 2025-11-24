@@ -46,6 +46,7 @@ move-vm-types = { workspace = true }
 move-compiler = { workspace = true }
 move-symbol-pool = { workspace = true }
 move-command-line-common = { workspace = true }
+bcs = { workspace = true }
 
 [features]
 default = []

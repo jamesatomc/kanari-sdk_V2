@@ -8,6 +8,8 @@ edition = "2024"
 # Move dependencies
 move-core-types = { workspace = true}
 
+# Error handling
+anyhow = "1.0"
 
 log.workspace = true
 lazy_static.workspace = true

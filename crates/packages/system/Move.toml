@@ -7,5 +7,5 @@ version = "0.0.1"
 MoveStdlib = { local = "../../../third_party/move/crates/move-stdlib" }
 
 [addresses]
-system = "0x1"
+system = "0x2"
 std = "0x1"
