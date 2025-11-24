@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self};
 use std::io::{self};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 use crate::Keystore;
@@ -61,10 +60,7 @@ pub struct BackupMetadata {
 impl BackupMetadata {
     /// Create new backup metadata
     pub fn new(key_count: usize, has_mnemonic: bool, checksum: String) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_secs();
+        let timestamp = crate::get_current_timestamp();
 
         Self {
             created_at: timestamp,
@@ -152,16 +148,12 @@ impl BackupManager {
 
         // Create backup structure
         let backup = EncryptedBackup {
-            metadata,
+            metadata: metadata.clone(),
             encrypted_data,
         };
 
-        // Generate backup filename with timestamp
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_secs();
-        let filename = format!("keystore_backup_{}.kbak", timestamp);
+        // Generate backup filename with timestamp from metadata (ensures consistency)
+        let filename = format!("keystore_backup_{}.kbak", metadata.created_at);
         let backup_path = self.backup_dir.join(&filename);
 
         // Write backup to file

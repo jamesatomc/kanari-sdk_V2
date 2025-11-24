@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 /// Errors related to audit logging
@@ -140,10 +139,7 @@ pub struct AuditEntry {
 impl AuditEntry {
     /// Create a new audit entry
     pub fn new(event: SecurityEvent) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_secs();
+        let timestamp = crate::get_current_timestamp();
 
         Self {
             timestamp,

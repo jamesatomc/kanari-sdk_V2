@@ -4,7 +4,6 @@
 //! to ensure cryptographic keys are regularly updated.
 
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 /// Errors related to key rotation
@@ -71,10 +70,7 @@ pub struct KeyMetadata {
 impl KeyMetadata {
     /// Create new key metadata
     pub fn new(key_id: String) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_secs();
+        let now = crate::get_current_timestamp();
 
         Self {
             key_id,
@@ -87,24 +83,18 @@ impl KeyMetadata {
 
     /// Get age of key in days
     pub fn age_days(&self) -> u64 {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_secs();
+        let now = crate::get_current_timestamp();
 
-        let age_seconds = now - self.created_at;
+        let age_seconds = now.saturating_sub(self.created_at);
         age_seconds / 86400 // Convert to days
     }
 
     /// Get time since last rotation in hours
     pub fn hours_since_last_rotation(&self) -> Option<u64> {
         self.last_rotated_at.map(|last_rotated| {
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or(std::time::Duration::from_secs(0))
-                .as_secs();
+            let now = crate::get_current_timestamp();
 
-            let age_seconds = now - last_rotated;
+            let age_seconds = now.saturating_sub(last_rotated);
             age_seconds / 3600 // Convert to hours
         })
     }
@@ -133,13 +123,10 @@ impl KeyMetadata {
 
     /// Record successful rotation
     pub fn record_rotation(&mut self) {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_secs();
+        let now = crate::get_current_timestamp();
 
         self.last_rotated_at = Some(now);
-        self.rotation_count += 1;
+        self.rotation_count = self.rotation_count.saturating_add(1);
         self.rotation_due = false;
     }
 }

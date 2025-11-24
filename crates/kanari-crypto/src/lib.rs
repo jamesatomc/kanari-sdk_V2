@@ -47,6 +47,19 @@ pub use keystore::{Keystore, get_keystore_path, keystore_exists};
 // Re-export compression functionality
 pub use compression::{compress_data, decompress_data};
 
+// Timestamp utilities
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Get current Unix timestamp in seconds
+/// Returns 0 if system time is before UNIX_EPOCH (should never happen in practice)
+#[must_use]
+pub fn get_current_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 // Re-export HSM functionality
 pub use hsm::{HsmConfig, HsmError, HsmInterface, HsmProvider, SoftwareHsm, create_hsm};
 
