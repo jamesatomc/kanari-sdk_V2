@@ -58,9 +58,9 @@ pub struct TransferModule;
 
 impl TransferModule {
     pub const SYSTEM_ADDRESS: &'static str = "0x1";
-    pub const TRANSFER_MODULE: &'static str = "simple_transfer";
+    pub const TRANSFER_MODULE: &'static str = "transfer";
 
-    /// Get the module ID for system::simple_transfer
+    /// Get the module ID for system::transfer
     pub fn get_module_id() -> Result<ModuleId> {
         let address = AccountAddress::from_hex_literal(Self::SYSTEM_ADDRESS)
             .context("Invalid system address")?;
@@ -146,7 +146,7 @@ mod tests {
         assert!(module_id.is_ok());
         
         let module_id = module_id.unwrap();
-        assert_eq!(module_id.name().as_str(), "simple_transfer");
+        assert_eq!(module_id.name().as_str(), "transfer");
     }
 
     #[test]

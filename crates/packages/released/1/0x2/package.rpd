@@ -1,6 +1,5 @@
 {
-  "package_name": "kanari_system",
-  "version": "0.0.1",
+  "package_name": "KanariSystem",
   "modules": [
     {
       "name": "transfer",
@@ -420,5 +419,5 @@
       ]
     }
   ],
-  "compiled_at": 1763996958
+  "compiled_at": 1764003105
 }

@@ -18,7 +18,7 @@ pub struct PackageConfig {
 pub static FRAMEWORK_PACKAGES: &[(&str, &str, &str)] = &[
     // (name, directory, address)
     ("MoveStdlib", "move-stdlib", "0x1"),
-    ("KanariSystem", "system", "0x2"),
+    ("KanariSystem", "kanari-system", "0x2"),
     // Add more packages here as needed:
     // ("KanariFramework", "kanari-framework", "0x3"),
     // ("KanariNursery", "kanari-nursery", "0x4"),
@@ -54,7 +54,7 @@ mod tests {
         assert_eq!(stdlib.address, AccountAddress::ONE);
         
         let system = configs.iter().find(|p| p.name == "KanariSystem").unwrap();
-        assert_eq!(system.directory, "system");
-        assert_eq!(format!("{}", system.address), "0x0000000000000000000000000000000000000000000000000000000000000002");
+        assert_eq!(system.directory, "kanari-system");
+        assert_eq!(system.address, AccountAddress::TWO);
     }
 }

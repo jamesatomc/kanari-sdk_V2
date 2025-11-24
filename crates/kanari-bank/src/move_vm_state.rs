@@ -121,14 +121,4 @@ impl MoveVMState {
 
         Ok(())
     }
-
-    /// Get all accounts
-    pub fn accounts(&self) -> &HashMap<String, u64> {
-        &self.accounts
-    }
-
-    /// Get transfer history
-    pub fn transfers(&self) -> &Vec<TransferRecord> {
-        &self.transfers
-    }
 }

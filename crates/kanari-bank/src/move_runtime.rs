@@ -9,7 +9,6 @@ use move_core_types::{
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_types::gas::UnmeteredGasMeter;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use kanari_types::transfer::TransferModule;
 use bcs;
 
@@ -80,31 +79,6 @@ impl MoveRuntime {
         self.storage.add_module(module_id.clone(), module_bytes);
         
         Ok(module_id)
-    }
-
-    /// Load all compiled modules from a directory
-    pub fn load_modules_from_dir(&mut self, dir: PathBuf) -> Result<Vec<ModuleId>> {
-        let mut module_ids = Vec::new();
-        
-        if !dir.exists() {
-            anyhow::bail!("Directory does not exist: {:?}", dir);
-        }
-
-        // Look for .mv files (compiled Move modules)
-        for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            
-            if path.extension().and_then(|s| s.to_str()) == Some("mv") {
-                let module_bytes = std::fs::read(&path)
-                    .context(format!("Failed to read module: {:?}", path))?;
-                
-                let module_id = self.load_module(module_bytes)?;
-                module_ids.push(module_id);
-            }
-        }
-
-        Ok(module_ids)
     }
 
     /// Execute a Move function

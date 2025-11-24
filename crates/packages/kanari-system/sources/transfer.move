@@ -1,6 +1,6 @@
 /// Ultra Simple Transfer Module - Works with vanilla Move VM
 /// No global storage, just pure function logic
-module system::transfer {
+module kanari_system::transfer {
     use std::vector;
 
     /// Transfer record

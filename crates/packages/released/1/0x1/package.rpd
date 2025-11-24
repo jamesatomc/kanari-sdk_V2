@@ -1,6 +1,5 @@
 {
   "package_name": "MoveStdlib",
-  "version": "0.0.1",
   "modules": [
     {
       "name": "bcs",
@@ -6866,5 +6865,5 @@
       ]
     }
   ],
-  "compiled_at": 1763997002
+  "compiled_at": 1764003105
 }

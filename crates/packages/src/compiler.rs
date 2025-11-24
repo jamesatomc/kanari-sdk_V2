@@ -90,7 +90,7 @@ pub fn compile_package(package_dir: &Path, output_dir: &Path, version: &str, add
             .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?
     );
     named_addresses.insert(
-        Symbol::from("system"), 
+        Symbol::from("kanari_system"), 
         NumericalAddress::parse_str("0x2")
             .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?
     );
