@@ -65,6 +65,13 @@ module kanari_system::transfer {
         assert!(get_amount(&t) == 500, 2);
     }
 
+    /// Minimal helper to 'freeze' a metadata object returned by currency creation.
+    /// This implementation is a no-op placeholder that consumes the object.
+    public fun public_freeze_object<T: drop>(_obj: T) {
+        // In a full implementation this would mark the metadata as immutable
+        // or store it in a global registry. Here we simply accept the object.
+    }
+
     #[test]
     fun test_total_amount() {
         let transfers = vector::empty<Transfer>();
