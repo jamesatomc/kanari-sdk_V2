@@ -13,9 +13,13 @@ exclude = [
 
 # Members List: Crates that are part of this workspace.
 # These are the core components of the "kanari-" project.
-members = ["crates/kanari-bank","crates/kanari-common","crates/kanari-crypto"
-
-, "crates/kanari-types", "crates/packages"]
+members = [
+      "crates/kanari-bank",
+      "crates/kanari-common",
+      "crates/kanari-crypto",
+      "crates/kanari-frameworks", 
+      "crates/kanari-types"
+]
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]

@@ -148,7 +148,7 @@ fn main() -> Result<()> {
 
     // Auto-load Move module for CLI mode
     let default_module_path =
-        "crates/packages/kanari-system/build/KanariSystem/bytecode_modules/transfer.mv";
+        "crates//packages/kanari-system/build/KanariSystem/bytecode_modules/transfer.mv";
     if std::path::Path::new(default_module_path).exists() {
         if let Ok(module_bytes) = fs::read(default_module_path) {
             let _ = runtime.load_module(module_bytes);

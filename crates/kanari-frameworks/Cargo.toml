@@ -1,10 +1,10 @@
 [package]
-name = "kanari-packages"
+name = "kanari-frameworks"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "packages"
+name = "kanari-frameworks"
 path = "src/main.rs"
 
 [dependencies]

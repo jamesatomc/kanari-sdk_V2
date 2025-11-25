@@ -13,7 +13,7 @@ use std::{
 };
 
 #[derive(Parser)]
-#[command(name = "packages")]
+#[command(name = "kanari-frameworks")]
 #[command(about = "Kanari Package Manager - Compiler & Documentation Generator", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -22,13 +22,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Compile Move packages
+    /// Compile Move kanari-frameworks
     Build {
         /// Package version to compile (default: latest)
         #[arg(long, default_value = "latest")]
         version: String,
     },
-    /// Generate documentation for Move packages
+    /// Generate documentation for Move kanari-frameworks
     Docs {
         /// Specific package to generate docs for (optional, generates for all if not specified)
         #[arg(long)]
@@ -52,7 +52,7 @@ fn get_packages_dir() -> Result<PathBuf> {
     Ok(if current_dir.ends_with("packages") {
         current_dir
     } else {
-        current_dir.join("crates/packages")
+        current_dir.join("crates/kanari-frameworks/packages")
     })
 }
 
