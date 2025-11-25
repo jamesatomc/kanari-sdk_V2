@@ -51,6 +51,10 @@ mod hex_serde {
 pub fn compile_package(package_dir: &Path, output_dir: &Path, version: &str, address: &str) -> Result<PathBuf> {
     println!("📦 Compiling: {:?}", package_dir);
     
+    // Validate address format first
+    NumericalAddress::parse_str(address)
+        .map_err(|e| anyhow::anyhow!("Invalid address '{}': {}", address, e))?;
+    
     let sources_dir = package_dir.join("sources");
     if !sources_dir.exists() {
         anyhow::bail!("Sources directory not found: {:?}", sources_dir);
@@ -58,7 +62,7 @@ pub fn compile_package(package_dir: &Path, output_dir: &Path, version: &str, add
 
     let package_name = get_package_name(package_dir)?;
     let source_files = collect_move_files(&sources_dir)?;
-    let dependencies = if is_stdlib(address) {
+    let dependencies = if is_stdlib(address)? {
         Vec::new()
     } else {
         load_stdlib_dependencies(package_dir)?
@@ -174,19 +178,22 @@ fn collect_move_files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 /// Check if address is stdlib (0x1)
-fn is_stdlib(address: &str) -> bool {
-    matches!(
-        address.trim_start_matches("0x").trim_start_matches('0'),
-        "1" | ""
-    )
+fn is_stdlib(address: &str) -> Result<bool> {
+    let addr = NumericalAddress::parse_str(address)
+        .map_err(|e| anyhow::anyhow!("Failed to parse address '{}': {}", address, e))?;
+    let stdlib_addr = NumericalAddress::parse_str("0x1")
+        .expect("Invalid hardcoded stdlib address");
+    Ok(addr == stdlib_addr)
 }
 
 /// Load stdlib dependencies
 fn load_stdlib_dependencies(package_dir: &Path) -> Result<Vec<PathBuf>> {
-    package_dir.join("../move-stdlib/sources")
-        .exists()
-        .then(|| collect_move_files(&package_dir.join("../move-stdlib/sources")))
-        .unwrap_or_else(|| Ok(Vec::new()))
+    let stdlib_dir = package_dir.join("../move-stdlib/sources");
+    if stdlib_dir.exists() {
+        collect_move_files(&stdlib_dir)
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 /// Get standard named addresses from packages_config
@@ -206,10 +213,19 @@ fn get_named_addresses() -> BTreeMap<Symbol, NumericalAddress> {
         .collect()
 }
 
-/// Parse package name from Move.toml
+/// Parse package name from Move.toml (handles comments)
 fn parse_package_name(content: &str) -> Option<String> {
-    content.lines()
-        .find(|line| line.trim().starts_with("name"))
-        .and_then(|line| line.split('=').nth(1))
-        .map(|name| name.trim().trim_matches('"').trim_matches('\'').to_string())
+    for line in content.lines() {
+        let line = line.split('#').next()?.trim();
+        if line.starts_with("name") {
+            if let Some(name_part) = line.split('=').nth(1) {
+                return Some(
+                    name_part.trim()
+                        .trim_matches(|c| c == '"' || c == '\'')
+                        .to_string()
+                );
+            }
+        }
+    }
+    None
 }
