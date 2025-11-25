@@ -4,3 +4,6 @@ pub mod coin;
 pub mod kanari;
 pub mod transfer;
 pub mod tx_context;
+
+// Move Standard Library bindings
+pub mod stdlib;
