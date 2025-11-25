@@ -61,3 +61,11 @@ move-prover = { path = "third_party/move/crates/move-prover" }
 move-stackless-bytecode = { path = "third_party/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "third_party/move/crates/move-symbol-pool" }
 move-abstract-stack = { path = "third_party/move/crates/move-abstract-stack" }
+move-docgen = { path = "third_party/move/crates/move-docgen" }
+move-errmapgen = { path = "third_party/move/crates/move-errmapgen" }
+move-stdlib-natives = { path = "third_party/move/crates/move-stdlib-natives" }
+walkdir = "2.3.1"
+smallvec = "1.6.1"
+sha2 = "0.9.3"
+anyhow = "1.0.52"
+tempfile = "3.2.0"

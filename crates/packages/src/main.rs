@@ -1,91 +1,195 @@
 mod compiler;
 mod packages_config;
+mod doc_generator;
 
 use anyhow::Result;
-use clap::Parser;
-use std::env;
+use clap::{Parser, Subcommand};
+use std::{env, path::{Path, PathBuf}};
 use packages_config::get_package_configs;
+use doc_generator::{generate_documentation, PackageDocConfig};
 
 #[derive(Parser)]
 #[command(name = "packages")]
-#[command(about = "Kanari Package Compiler", long_about = None)]
+#[command(about = "Kanari Package Manager - Compiler & Documentation Generator", long_about = None)]
 struct Cli {
-    /// Package version to compile (default: 1)
-    #[arg(long, default_value = "1")]
-    version: String,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Compile Move packages
+    Build {
+        /// Package version to compile (default: 1)
+        #[arg(long, default_value = "1")]
+        version: String,
+    },
+    /// Generate documentation for Move packages
+    Docs {
+        /// Specific package to generate docs for (optional, generates for all if not specified)
+        #[arg(long)]
+        package: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    
-    println!("🚀 Kanari Package Compiler");
-    println!("==========================\n");
-    println!("📌 Version: {}\n", cli.version);
+    let packages_dir = get_packages_dir()?;
 
-    // Get the workspace root (go up from packages directory)
+    match cli.command {
+        Commands::Build { version } => build_packages(&packages_dir, version),
+        Commands::Docs { package } => generate_docs(&packages_dir, package),
+    }
+}
+
+/// Get the packages directory from current working directory
+fn get_packages_dir() -> Result<PathBuf> {
     let current_dir = env::current_dir()?;
-    
-    // Find the actual packages directory
-    let packages_dir = if current_dir.ends_with("packages") {
-        current_dir.clone()
+    Ok(if current_dir.ends_with("packages") {
+        current_dir
     } else {
         current_dir.join("crates/packages")
-    };
-    
-    // Output directory for compiled packages (released/)
+    })
+}
+
+/// Print summary of operations
+fn print_summary(operation: &str, success: usize, failed: usize) {
+    println!("\n✨ {} Summary:", operation);
+    println!("   ✅ Successful: {}", success);
+    if failed > 0 {
+        println!("   ❌ Failed: {}", failed);
+    }
+}
+
+fn build_packages(packages_dir: &Path, version: String) -> Result<()> {
+    println!("🚀 Kanari Package Compiler");
+    println!("==========================\n");
+    println!("📌 Version: {}\n", version);
+
     let output_dir = packages_dir.join("released");
-    
-    println!("📁 Packages directory: {:?}", packages_dir);
-    println!("📁 Output directory: {:?}\n", output_dir);
+    println!("📁 Packages: {:?}", packages_dir);
+    println!("📁 Output: {:?}\n", output_dir);
 
-    // Get all package configurations
-    let package_configs = get_package_configs();
-    let mut compiled_count = 0;
-    let mut failed_count = 0;
-
-    // Compile all configured packages
-    for config in package_configs {
+    let (success, failed) = process_packages(|config| {
         let package_dir = packages_dir.join(config.directory);
-        
         if !package_dir.exists() {
-            eprintln!("⚠️  Package directory not found: {:?}\n", package_dir);
+            eprintln!("⚠️  Not found: {:?}\n", package_dir);
+            return Err(anyhow::anyhow!("Directory not found"));
+        }
+
+        println!("Compiling {} ({})...", config.name, config.address);
+        compiler::compile_package(&package_dir, &output_dir, &version, config.address)
+            .map(|file| {
+                println!("✅ {}", config.name);
+                println!("   {:?}\n", file);
+            })
+    });
+
+    print_summary("Compilation", success, failed);
+    
+    Ok(())
+}
+
+fn generate_docs(packages_dir: &Path, specific_package: Option<String>) -> Result<()> {
+    println!("📚 Kanari Documentation Generator");
+    println!("==================================\n");
+
+    let mut doc_configs = get_doc_configs(packages_dir)?;
+
+    if let Some(pkg_name) = &specific_package {
+        doc_configs.retain(|cfg| cfg.name == *pkg_name);
+        if doc_configs.is_empty() {
+            eprintln!("❌ Package not found: {}", pkg_name);
+            return Ok(());
+        }
+    }
+
+    if doc_configs.is_empty() {
+        eprintln!("❌ No packages configured");
+        return Ok(());
+    }
+
+    println!("📦 Generating docs for {} package(s)\n", doc_configs.len());
+
+    let (success, failed) = process_doc_configs(doc_configs);
+    print_summary("Documentation", success, failed);
+
+    Ok(())
+}
+
+/// Process packages with a given function
+fn process_packages<F>(mut process_fn: F) -> (usize, usize)
+where
+    F: FnMut(&packages_config::PackageConfig) -> Result<()>,
+{
+    let mut success = 0;
+    let mut failed = 0;
+
+    for config in get_package_configs() {
+        match process_fn(&config) {
+            Ok(_) => success += 1,
+            Err(e) => {
+                eprintln!("❌ {}: {}\n", config.name, e);
+                failed += 1;
+            }
+        }
+    }
+
+    (success, failed)
+}
+
+/// Process documentation configurations
+fn process_doc_configs(configs: Vec<PackageDocConfig>) -> (usize, usize) {
+    let mut success = 0;
+    let mut failed = 0;
+
+    for config in configs {
+        match generate_documentation(&config) {
+            Ok(_) => success += 1,
+            Err(e) => {
+                eprintln!("❌ {}: {}", config.name, e);
+                failed += 1;
+            }
+        }
+    }
+
+    (success, failed)
+}
+
+fn get_doc_configs(packages_dir: &Path) -> Result<Vec<PackageDocConfig>> {
+    let package_configs = get_package_configs();
+    let mut doc_configs = Vec::new();
+
+    for config in package_configs {
+        let package_path = packages_dir.join(config.directory);
+        if !package_path.exists() {
             continue;
         }
 
-        // Convert AccountAddress to short hex format (0x1, 0x2, 0x3, etc.)
-        // AccountAddress is 32 bytes stored as big-endian
-        // For simple addresses like 0x1, 0x2, the value is in the last byte
-        let addr_bytes = config.address.to_vec();
-        let mut value = 0u64;
-        // Read up to last 8 bytes in reverse (big-endian to u64)
-        let start = addr_bytes.len().saturating_sub(8);
-        for &byte in &addr_bytes[start..] {
-            value = (value << 8) | (byte as u64);
+        let mut doc_config = PackageDocConfig::new(
+            config.directory,
+            package_path.to_str().unwrap()
+        );
+
+        // Add address mapping
+        let addr_name = match config.name {
+            "MoveStdlib" => "std",
+            "KanariSystem" => "kanari_system",
+            _ => config.name,
+        };
+        doc_config = doc_config.with_address(addr_name, config.address)?;
+
+        // Add stdlib dependency for non-stdlib packages
+        if config.address != "0x1" {
+            doc_config = doc_config
+                .with_address("std", "0x1")?
+                .with_dependency(
+                    packages_dir.join("move-stdlib/sources").to_string_lossy().to_string()
+                );
         }
-        let address_str = format!("0x{:x}", value);
-        
-        println!("Compiling {} ({})...", config.name, address_str);
-        
-        match compiler::compile_package(&package_dir, &output_dir, &cli.version, &address_str) {
-            Ok(output_file) => {
-                println!("✅ Successfully compiled {}", config.name);
-                println!("   Output: {:?}\n", output_file);
-                compiled_count += 1;
-            }
-            Err(e) => {
-                eprintln!("❌ Failed to compile {}: {}", config.name, e);
-                eprintln!("   Error details: {:?}\n", e);
-                failed_count += 1;
-            }
-        }
+
+        doc_configs.push(doc_config);
     }
 
-    // Summary
-    println!("\n✨ Compilation Summary:");
-    println!("   ✅ Successful: {}", compiled_count);
-    if failed_count > 0 {
-        println!("   ❌ Failed: {}", failed_count);
-    }
-    
-    Ok(())
+    Ok(doc_configs)
 }

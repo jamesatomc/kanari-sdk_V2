@@ -1,6 +1,8 @@
 [package]
 name = "KanariSystem"
 version = "0.0.1"
+license = "Apache-2.0"
+authors = ["Kanari Team"]
 
 [dependencies]
 # Use local Move standard library
@@ -9,3 +11,6 @@ MoveStdlib = { local = "../move-stdlib" }
 [addresses]
 kanari_system = "0x2"
 std = "0x1"
+
+[dev-mode]
+# Enable tests in development mode
