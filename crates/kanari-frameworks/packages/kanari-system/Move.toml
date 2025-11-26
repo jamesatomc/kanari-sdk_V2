@@ -12,5 +12,3 @@ MoveStdlib = { local = "../move-stdlib" }
 kanari_system = "0x2"
 std = "0x1"
 
-[dev-mode]
-# Enable tests in development mode

@@ -1,16 +1,12 @@
-/// Kanari Coin - เหรียญหลักของระบบ Kanari
-/// Module นี้เป็น main entry point สำหรับการจัดการเหรียญ Kanari
-/// จะประกอบด้วยฟังก์ชันสำหรับลงทะเบียนเหรียญ Kanari ในขั้น genesis
+/// Coin<KARI> is the token used to pay for gas in Kari.
+/// It has 9 decimals, and the smallest unit (10^-9) is called "KA".
 module kanari_system::kanari {
-    use kanari_system::balance::Balance;
-    use kanari_system::coin;
-    use kanari_system::transfer;
-    use kanari_system::tx_context::{Self, TxContext};
     use std::option;
+    use kanari_system::tx_context::{Self, TxContext};
+    use kanari_system::balance::{Self, Balance};
+    use kanari_system::transfer;
+    use kanari_system::coin::{Self, Coin, TreasuryCap};
 
-    const EAlreadyMinted: u64 = 0;
-    /// Sender is not @0x0 the system address.
-    const ENotSystemAddress: u64 = 1;
 
     #[allow(unused_const)]
     /// The amount of Mist per Kanari token based on the fact that mist is
@@ -27,26 +23,31 @@ module kanari_system::kanari {
     /// Name of the coin
     struct KANARI has drop {}
 
-    #[allow(unused_function)]
-    // Register the `KANARI` Coin to acquire its `Supply`.
-    // This should be called only once during genesis creation.
-    fun new(ctx: &mut TxContext): Balance<KANARI> {
-        assert!(tx_context::sender(ctx) == @0x0, ENotSystemAddress);
-        assert!(tx_context::epoch(ctx) == 0, EAlreadyMinted);
-
-        let (treasury, metadata) = coin::create_currency(
-            KANARI {},
+    /// Initialize the KANARI currency with one-time witness
+    fun init(witness: KANARI, ctx: &mut TxContext) {
+        let (treasury_cap, metadata) = coin::create_currency(
+            witness,
             9,
             b"KANARI",
             b"KANARI",
             // TODO: add appropriate description and logo url
             b"",
             option::none(),
-            ctx,
+            ctx
         );
         transfer::public_freeze_object(metadata);
-        let supply = coin::treasury_into_supply(treasury);
-        let total_kanari = coin::increase_supply(supply, TOTAL_SUPPLY_MIST);
-        total_kanari
+        // Store treasury_cap for later minting
+        // In production, this would be transferred to governance or stored properly
+        transfer::public_transfer(treasury_cap, tx_context::sender(ctx));
+    }
+
+    /// KARI tokens to the treasury
+    public fun transfer(c: coin::Coin<KANARI>, recipient: address) {
+        transfer::public_transfer(c, recipient)
+    }
+
+    /// Burns KANARI tokens, decreasing total supply
+    public fun burn(treasury_cap: &mut TreasuryCap<KANARI>, coin: Coin<KANARI>) {
+        coin::burn(treasury_cap, coin);
     }
 }

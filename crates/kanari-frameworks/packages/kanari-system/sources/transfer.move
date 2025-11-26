@@ -72,6 +72,15 @@ module kanari_system::transfer {
         // or store it in a global registry. Here we simply accept the object.
     }
 
+    /// Transfer an object with store ability to a recipient
+    /// This is a simplified implementation for testing
+    public fun public_transfer<T: store + drop>(obj: T, recipient: address) {
+        // In a full implementation this would handle object ownership transfer
+        // For now, we consume the object and ignore the recipient
+        let _ = obj;
+        let _ = recipient;
+    }
+
     #[test]
     fun test_total_amount() {
         let transfers = vector::empty<Transfer>();
