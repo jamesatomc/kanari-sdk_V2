@@ -8,20 +8,22 @@ use serde::{Deserialize, Serialize};
 /// Transfer record structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TransferRecord {
-    pub from: String,
-    pub to: String,
+    pub from: AccountAddress,
+    pub to: AccountAddress,
     pub amount: u64,
 }
 
 impl TransferRecord {
-    /// Create a new transfer record
-    pub fn new(from: String, to: String, amount: u64) -> Self {
+    /// Create a new transfer record from Move `AccountAddress`s
+    pub fn new(from: AccountAddress, to: AccountAddress, amount: u64) -> Self {
         Self { from, to, amount }
     }
 
-    /// Create transfer record from AccountAddress
-    pub fn from_addresses(from: AccountAddress, to: AccountAddress, amount: u64) -> Self {
-        Self::new(format!("{}", from), format!("{}", to), amount)
+    /// Create transfer record from hex string literals (convenience)
+    pub fn from_hex_literals(from_hex: &str, to_hex: &str, amount: u64) -> Result<Self> {
+        let from = AccountAddress::from_hex_literal(from_hex).context("Invalid from address")?;
+        let to = AccountAddress::from_hex_literal(to_hex).context("Invalid to address")?;
+        Ok(Self::new(from, to, amount))
     }
 }
 
@@ -35,7 +37,11 @@ impl TransferValidator {
         to: &AccountAddress,
         amount: u64,
     ) -> Result<bool> {
-        Ok(amount > 0 && from != to)
+        // Reject zero amounts, identical addresses, and the zero address
+        let zero =
+            AccountAddress::from_hex_literal("0x0").context("failed to build zero address")?;
+        let valid = amount > 0 && from != to && *from != zero && *to != zero;
+        Ok(valid)
     }
 }
 
@@ -64,7 +70,13 @@ impl TransferModule {
             get_amount: "get_amount",
             get_from: "get_from",
             get_to: "get_to",
+            total_amount: "total_amount",
         }
+    }
+
+    /// Convenience: return the function name for `total_amount`
+    pub fn total_amount_name() -> &'static str {
+        "total_amount"
     }
 }
 
@@ -75,6 +87,7 @@ pub struct TransferFunctions {
     pub get_amount: &'static str,
     pub get_from: &'static str,
     pub get_to: &'static str,
+    pub total_amount: &'static str,
 }
 
 #[cfg(test)]
@@ -83,9 +96,11 @@ mod tests {
 
     #[test]
     fn test_transfer_record_creation() {
-        let record = TransferRecord::new("0x1".to_string(), "0x2".to_string(), 1000);
-        assert_eq!(record.from, "0x1");
-        assert_eq!(record.to, "0x2");
+        let record = TransferRecord::from_hex_literals("0x1", "0x2", 1000).unwrap();
+        let expected_from = AccountAddress::from_hex_literal("0x1").unwrap();
+        let expected_to = AccountAddress::from_hex_literal("0x2").unwrap();
+        assert_eq!(record.from, expected_from);
+        assert_eq!(record.to, expected_to);
         assert_eq!(record.amount, 1000);
         // timestamp removed in Move transfer; record contains only from/to/amount
     }

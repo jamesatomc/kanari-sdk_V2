@@ -81,7 +81,7 @@ fn main() {
 
     // 6. Demonstrate Transfer module
     println!("\n💸 Transfer Module Demo:");
-    let transfer = transfer::TransferRecord::new("0x1".to_string(), "0x2".to_string(), 1000);
+    let transfer = transfer::TransferRecord::from_hex_literals("0x1", "0x2", 1000).unwrap();
     println!("   From: {}", transfer.from);
     println!("   To: {}", transfer.to);
     println!("   Amount: {}", transfer.amount);
@@ -157,7 +157,7 @@ fn main() {
 
     println!("   2. Create transfer: 1,000 MIST from 0x1 to 0x2");
     let workflow_transfer =
-        transfer::TransferRecord::new("0x1".to_string(), "0x2".to_string(), 1_000);
+        transfer::TransferRecord::from_hex_literals("0x1", "0x2", 1_000).unwrap();
 
     println!("   3. Decrease balance by transfer amount");
     workflow_balance.decrease(workflow_transfer.amount).unwrap();

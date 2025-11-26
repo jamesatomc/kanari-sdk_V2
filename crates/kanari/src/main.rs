@@ -13,6 +13,8 @@ use kanari_crypto::{
 };
 
 use kanari_move_runtime::{MoveRuntime, MoveVMState};
+use kanari_types::genesis;
+use kanari_types::kanari::KanariModule;
 
 /// Kanari - A Move-based money transfer system
 #[derive(Parser)]
@@ -141,6 +143,22 @@ fn main() -> Result<()> {
 
     let mut state = MoveVMState::load()?;
     let mut runtime = MoveRuntime::new()?;
+
+    // First-run genesis bootstrap: if total supply is zero, seed developer account
+    if state.get_total_supply() == 0 {
+        match genesis::dev_account_address() {
+            Ok(dev_addr) => {
+                let total = KanariModule::TOTAL_SUPPLY_MIST;
+                println!("Genesis: minting {} MIST to {}", total, dev_addr);
+                state.mint(dev_addr, total)?;
+                state.save()?;
+                println!("✓ Genesis completed: total supply set")
+            }
+            Err(e) => {
+                println!("Failed to parse dev address for genesis: {}", e);
+            }
+        }
+    }
 
     // Auto-load Move module for CLI mode
     let default_module_path =
@@ -364,12 +382,13 @@ fn main() -> Result<()> {
                 println!("⚠️  Warning: This will delete all data!");
                 println!("Use --confirm flag to proceed");
             } else {
-                let path = MoveVMState::data_file();
-                if path.exists() {
-                    fs::remove_file(&path)?;
-                    println!("✓ Data has been reset");
+                // MoveVMState now uses RocksDB directory for persistence. Remove the DB directory.
+                let db_path = MoveVMState::db_path();
+                if db_path.exists() {
+                    std::fs::remove_dir_all(&db_path)?;
+                    println!("✓ Data has been reset (RocksDB directory removed)");
                 } else {
-                    println!("No data file found");
+                    println!("No data directory found");
                 }
             }
         }

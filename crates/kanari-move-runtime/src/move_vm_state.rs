@@ -207,8 +207,7 @@ impl MoveVMState {
             .context("Failed to increase recipient balance")?;
 
         // Record transfer
-        self.transfers
-            .push(TransferRecord::from_addresses(from, to, amount));
+        self.transfers.push(TransferRecord::new(from, to, amount));
 
         Ok(())
     }

@@ -153,7 +153,7 @@ fn test_complete_workflow() {
     assert_eq!(balance.value, 1500);
 
     // 3. Create a transfer record
-    let transfer = transfer::TransferRecord::new("0x1".to_string(), "0x2".to_string(), 500);
+    let transfer = transfer::TransferRecord::from_hex_literals("0x1", "0x2", 500).unwrap();
 
     // 4. Decrease balance by transfer amount
     balance.decrease(transfer.amount).unwrap();

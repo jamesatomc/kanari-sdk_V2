@@ -31,6 +31,9 @@ module kanari_system::coin {
         description: vector<u8>,
     }
 
+    /// Error codes (local to coin module)
+    const ERR_OVERFLOW: u64 = 2;
+
     /// Create a new currency with TreasuryCap for minting control
     public fun create_currency<T: drop>(
         witness: T,
@@ -63,7 +66,9 @@ module kanari_system::coin {
         amount: u64,
         _ctx: &mut TxContext,
     ): Coin<T> {
-        cap.total_supply = cap.total_supply + amount;
+        let new_total = cap.total_supply + amount;
+        assert!(new_total >= cap.total_supply, ERR_OVERFLOW);
+        cap.total_supply = new_total;
         Coin {
             balance: balance::create(amount),
         }
@@ -84,6 +89,7 @@ module kanari_system::coin {
     public fun burn<T>(cap: &mut TreasuryCap<T>, coin: Coin<T>): u64 {
         let Coin { balance } = coin;
         let value = balance::destroy(balance);
+        assert!(cap.total_supply >= value, ERR_OVERFLOW);
         cap.total_supply = cap.total_supply - value;
         value
     }

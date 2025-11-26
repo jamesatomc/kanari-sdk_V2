@@ -7,3 +7,5 @@ pub mod tx_context;
 
 // Move Standard Library bindings
 pub mod stdlib;
+
+pub mod genesis;
