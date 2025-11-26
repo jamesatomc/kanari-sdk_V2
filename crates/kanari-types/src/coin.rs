@@ -95,12 +95,16 @@ impl CoinModule {
     pub fn function_names() -> CoinFunctions {
         CoinFunctions {
             create_currency: "create_currency",
+            mint: "mint",
+            mint_and_transfer: "mint_and_transfer",
+            burn: "burn",
+            total_supply: "total_supply",
+            value: "value",
+            split: "split",
+            join: "join",
             treasury_into_supply: "treasury_into_supply",
             increase_supply: "increase_supply",
             destroy_supply: "destroy_supply",
-            create_coin: "create_coin",
-            value: "value",
-            burn: "burn",
         }
     }
 }
@@ -108,12 +112,16 @@ impl CoinModule {
 /// Coin module function names
 pub struct CoinFunctions {
     pub create_currency: &'static str,
+    pub mint: &'static str,
+    pub mint_and_transfer: &'static str,
+    pub burn: &'static str,
+    pub total_supply: &'static str,
+    pub value: &'static str,
+    pub split: &'static str,
+    pub join: &'static str,
     pub treasury_into_supply: &'static str,
     pub increase_supply: &'static str,
     pub destroy_supply: &'static str,
-    pub create_coin: &'static str,
-    pub value: &'static str,
-    pub burn: &'static str,
 }
 
 #[cfg(test)]

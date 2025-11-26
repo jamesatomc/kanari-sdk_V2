@@ -72,7 +72,9 @@ impl BalanceModule {
             increase: "increase",
             decrease: "decrease",
             split: "split",
-            join: "join",
+            merge: "merge",
+            transfer: "transfer",
+            has_sufficient: "has_sufficient",
             destroy: "destroy",
         }
     }
@@ -86,7 +88,9 @@ pub struct BalanceFunctions {
     pub increase: &'static str,
     pub decrease: &'static str,
     pub split: &'static str,
-    pub join: &'static str,
+    pub merge: &'static str,
+    pub transfer: &'static str,
+    pub has_sufficient: &'static str,
     pub destroy: &'static str,
 }
 

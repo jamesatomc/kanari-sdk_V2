@@ -11,7 +11,6 @@ pub struct TransferRecord {
     pub from: String,
     pub to: String,
     pub amount: u64,
-    pub timestamp: u64,
 }
 
 impl TransferRecord {
@@ -21,10 +20,6 @@ impl TransferRecord {
             from,
             to,
             amount,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
         }
     }
 
@@ -96,7 +91,7 @@ mod tests {
         assert_eq!(record.from, "0x1");
         assert_eq!(record.to, "0x2");
         assert_eq!(record.amount, 1000);
-        assert!(record.timestamp > 0);
+        // timestamp removed in Move transfer; record contains only from/to/amount
     }
 
     #[test]

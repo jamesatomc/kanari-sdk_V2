@@ -3,17 +3,14 @@
 module kanari_system::kanari {
     use std::option;
     use kanari_system::tx_context::{Self, TxContext};
-    use kanari_system::balance::{Self, Balance};
     use kanari_system::transfer;
     use kanari_system::coin::{Self, Coin, TreasuryCap};
 
 
-    #[allow(unused_const)]
     /// The amount of Mist per Kanari token based on the fact that mist is
     /// 10^-9 of a Kanari token
     const MIST_PER_KANARI: u64 = 1_000_000_000;
 
-    #[allow(unused_const)]
     /// The total supply of Kanari denominated in whole Kanari tokens (10 Billion)
     const TOTAL_SUPPLY_KANARI: u64 = 10_000_000_000;
 

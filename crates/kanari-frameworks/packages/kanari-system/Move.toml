@@ -1,8 +1,5 @@
 [package]
 name = "KanariSystem"
-version = "0.0.1"
-license = "Apache-2.0"
-authors = ["Kanari Team"]
 
 [dependencies]
 # Use local Move standard library

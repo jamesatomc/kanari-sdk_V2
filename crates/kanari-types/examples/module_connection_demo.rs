@@ -94,13 +94,13 @@ fn main() {
 
     // 7. Demonstrate TxContext module
     println!("\n📝 Transaction Context Module Demo:");
-    let tx_ctx =
-        tx_context::TxContextRecord::new("0xabcd".to_string(), 100, vec![1, 2, 3, 4], 1000, 50);
+    let tx_hash = vec![1, 2, 3, 4];
+    let tx_ctx = tx_context::TxContextRecord::new("0xabcd".to_string(), tx_hash.clone(), 100, 1_650_000_000, 50);
     println!("   Sender: {}", tx_ctx.sender());
     println!("   Epoch: {}", tx_ctx.epoch());
-    println!("   Gas Budget: {}", tx_ctx.gas_budget);
-    println!("   Gas Price: {}", tx_ctx.gas_price);
-    println!("   Total Gas Cost: {}", tx_ctx.total_gas_cost());
+    println!("   Tx Hash: {:?}", tx_ctx.tx_hash());
+    println!("   Epoch Timestamp (ms): {}", tx_ctx.epoch_timestamp_ms());
+    println!("   IDs Created: {}", tx_ctx.ids_created());
 
     // 8. Demonstrate stdlib modules
     println!("\n📖 Move Stdlib Modules Demo:");

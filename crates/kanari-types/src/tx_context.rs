@@ -9,39 +9,45 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TxContextRecord {
     pub sender: String,
+    pub tx_hash: Vec<u8>,
     pub epoch: u64,
-    pub digest: Vec<u8>,
-    pub gas_budget: u64,
-    pub gas_price: u64,
+    pub epoch_timestamp_ms: u64,
+    pub ids_created: u64,
 }
 
 impl TxContextRecord {
     /// Create a new transaction context
     pub fn new(
         sender: String,
+        tx_hash: Vec<u8>,
         epoch: u64,
-        digest: Vec<u8>,
-        gas_budget: u64,
-        gas_price: u64,
+        epoch_timestamp_ms: u64,
+        ids_created: u64,
     ) -> Self {
         Self {
             sender,
+            tx_hash,
             epoch,
-            digest,
-            gas_budget,
-            gas_price,
+            epoch_timestamp_ms,
+            ids_created,
         }
     }
 
     /// Create from AccountAddress
     pub fn from_address(
         sender: AccountAddress,
+        tx_hash: Vec<u8>,
         epoch: u64,
-        digest: Vec<u8>,
-        gas_budget: u64,
-        gas_price: u64,
+        epoch_timestamp_ms: u64,
+        ids_created: u64,
     ) -> Self {
-        Self::new(format!("{}", sender), epoch, digest, gas_budget, gas_price)
+        Self::new(
+            format!("{}", sender),
+            tx_hash,
+            epoch,
+            epoch_timestamp_ms,
+            ids_created,
+        )
     }
 
     /// Get sender address
@@ -53,10 +59,19 @@ impl TxContextRecord {
     pub fn epoch(&self) -> u64 {
         self.epoch
     }
+    /// Return tx hash bytes
+    pub fn tx_hash(&self) -> &Vec<u8> {
+        &self.tx_hash
+    }
 
-    /// Calculate total gas cost
-    pub fn total_gas_cost(&self) -> u64 {
-        self.gas_budget.saturating_mul(self.gas_price)
+    /// Return epoch start time in milliseconds
+    pub fn epoch_timestamp_ms(&self) -> u64 {
+        self.epoch_timestamp_ms
+    }
+
+    /// Number of ids created in this transaction
+    pub fn ids_created(&self) -> u64 {
+        self.ids_created
     }
 }
 
@@ -83,6 +98,8 @@ impl TxContextModule {
             sender: "sender",
             epoch: "epoch",
             digest: "digest",
+            epoch_timestamp_ms: "epoch_timestamp_ms",
+            ids_created: "get_ids_created",
         }
     }
 }
@@ -92,6 +109,8 @@ pub struct TxContextFunctions {
     pub sender: &'static str,
     pub epoch: &'static str,
     pub digest: &'static str,
+    pub epoch_timestamp_ms: &'static str,
+    pub ids_created: &'static str,
 }
 
 #[cfg(test)]
@@ -100,16 +119,13 @@ mod tests {
 
     #[test]
     fn test_tx_context_creation() {
-        let ctx = TxContextRecord::new("0x1".to_string(), 5, vec![1, 2, 3, 4], 1000, 100);
+        let tx_hash = vec![1, 2, 3, 4];
+        let ctx = TxContextRecord::new("0x1".to_string(), tx_hash.clone(), 5, 1_600_000_000, 2);
         assert_eq!(ctx.sender(), "0x1");
         assert_eq!(ctx.epoch(), 5);
-        assert_eq!(ctx.gas_budget, 1000);
-    }
-
-    #[test]
-    fn test_total_gas_cost() {
-        let ctx = TxContextRecord::new("0x1".to_string(), 0, vec![], 1000, 50);
-        assert_eq!(ctx.total_gas_cost(), 50_000);
+        assert_eq!(ctx.tx_hash(), &tx_hash);
+        assert_eq!(ctx.epoch_timestamp_ms(), 1_600_000_000);
+        assert_eq!(ctx.ids_created(), 2);
     }
 
     #[test]

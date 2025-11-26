@@ -35,7 +35,7 @@ module kanari_system::balance {
 
     /// ลดยอดคงเหลือ
     public fun decrease<T>(balance: &mut Balance<T>, amount: u64) {
-        assert!(balance.value >= amount, error::invalid_argument(ERR_INSUFFICIENT_BALANCE));
+        assert!(balance.value >= amount, ERR_INSUFFICIENT_BALANCE);
         balance.value = balance.value - amount;
     }
 
