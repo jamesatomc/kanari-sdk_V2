@@ -2,6 +2,7 @@ use anyhow::Result;
 use hex::encode as hex_encode;
 use kanari_move_runtime::{MoveRuntime};
 use kanari_crypto::wallet::list_wallet_files;
+use kanari_types::framework_path::FrameworkPath;
 
 use move_core_types::account_address::AccountAddress;
 
@@ -41,55 +42,99 @@ fn main() -> Result<()> {
 			return Ok(());
 		}
 
-		"publish-all" => {
-			// Path relative to workspace root where build output is placed
-			let modules_dir = PathBuf::from("crates/kanari-frameworks/packages/kanari-system/build/KanariSystem/bytecode_modules");
-			if !modules_dir.exists() {
-				eprintln!("Bytecode modules directory not found: {}", modules_dir.display());
-				eprintln!("Build the Move package first (see README).");
-				std::process::exit(1);
+		"inspect" => {
+			let path = match args.get(2) {
+				Some(p) => PathBuf::from(p),
+				None => {
+					eprintln!("Usage: inspect <path-to-bytecode.mv>");
+					std::process::exit(2);
+				}
+			};
+			let bytes = std::fs::read(&path)?;
+			match move_binary_format::file_format::CompiledModule::deserialize_with_defaults(&bytes) {
+				Ok(compiled) => {
+					println!("ModuleId address: {}", compiled.self_id().address());
+					println!("ModuleId name: {}", compiled.self_id().name());
+				}
+				Err(e) => eprintln!("Failed to deserialize module: {:?}", e),
 			}
+			return Ok(());
+		}
 
+		"publish-all" => {
+			// Verify framework paths exist
+			FrameworkPath::verify_paths()?;
+
+			let modules_dir = FrameworkPath::kanari_system_modules();
 			let mut rt = MoveRuntime::new()?;
 			let sender = AccountAddress::from_hex_literal("0x2")?;
 
-			for entry in std::fs::read_dir(&modules_dir)? {
-				let entry = entry?;
-				let path = entry.path();
-				if path.extension().and_then(|s| s.to_str()) == Some("mv") {
-					let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("<file>");
-					println!("Publishing {}...", name);
-					let bytes = std::fs::read(&path)?;
-					if let Err(e) = rt.publish_module(bytes, sender) {
-						eprintln!("Failed to publish {}: {:?}", name, e);
+			// First publish stdlib dependencies if present
+			if let Some(deps_dir) = FrameworkPath::find_stdlib_modules() {
+				println!("Found stdlib at: {}", deps_dir.display());
+				
+				let stdlib_files = FrameworkPath::get_module_files(&deps_dir)?;
+				if !stdlib_files.is_empty() {
+					let dep_modules = FrameworkPath::read_modules(&stdlib_files)?;
+					
+					for path in &stdlib_files {
+						println!("Queued stdlib module {}", path.display());
+					}
+
+					println!("Publishing MoveStdlib dependency bundle ({} modules)...", dep_modules.len());
+					let std_sender = AccountAddress::ONE;
+					
+					if let Err(e) = rt.publish_module_bundle(dep_modules.clone(), std_sender) {
+						eprintln!("Failed to publish stdlib bundle: {:?}", e);
+						println!("Falling back to ordered publish for stdlib modules...");
+						if let Err(e2) = rt.publish_modules_ordered(dep_modules.clone()) {
+							eprintln!("Ordered publish for stdlib also failed: {:?}", e2);
+						} else {
+							println!("Published MoveStdlib modules (ordered fallback).");
+						}
 					} else {
-						println!("Published {}", name);
+						println!("Published MoveStdlib bundle.");
 					}
 				}
+			} else {
+				println!("No stdlib modules found, skipping stdlib publish.");
 			}
+
+			// Now collect and publish the main package modules as a bundle
+			let module_files = FrameworkPath::get_module_files(&modules_dir)?;
+			if !module_files.is_empty() {
+				let modules = FrameworkPath::read_modules(&module_files)?;
+				
+				for path in &module_files {
+					let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("<file>");
+					println!("Queued {} for publishing", name);
+				}
+
+				println!("Publishing main module bundle ({} modules)...", modules.len());
+				if let Err(e) = rt.publish_module_bundle(modules, sender) {
+					eprintln!("Failed to publish main bundle: {:?}", e);
+				} else {
+					println!("Published main module bundle.");
+				}
+			}
+
 			println!("Publish-all complete.");
 			return Ok(());
 		}
 
-		"run-genesis" => {
-			let mut rt = MoveRuntime::new()?;
-			println!("Running genesis...");
-			if let Err(e) = rt.run_genesis() {
-				eprintln!("Genesis failed: {:?}", e);
-				std::process::exit(1);
-			} else {
-				println!("Genesis executed successfully.");
-			}
-			return Ok(());
-		}
 
-		"run" | _ => {
+		"run" => {
 			// fallthrough to node run
+		}
+		"start" => {
+			// alias for "run"
+		}
+		_ => {
+			eprintln!("Unknown command: {}. Available: run | start | publish-all | publish-file <path> | list-wallets | inspect <path>", cmd);
+			std::process::exit(2);
 		}
 	}
 
-	// Default: run node loop
-	let mut runtime = MoveRuntime::new()?;
 
 	println!("Kanari node starting...");
 	let mut tick: u64 = 0;

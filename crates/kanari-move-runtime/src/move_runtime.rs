@@ -9,10 +9,7 @@ use move_core_types::language_storage::{ModuleId, TypeTag};
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
-use move_core_types::runtime_value::{MoveValue, MoveStruct};
-use move_core_types::account_address::AccountAddress as MoveAccountAddress;
-use move_core_types::identifier::Identifier as MoveIdentifier;
-use move_core_types::language_storage::ModuleId as MoveModuleId;
+
 
 use crate::move_vm_state::MoveVMState;
 
@@ -32,47 +29,6 @@ impl MoveRuntime {
 		// For simplicity we initialise the VM with no custom natives.
 		let vm = MoveVM::new(vec![]).map_err(|e| anyhow::anyhow!(format!("VM init error: {:?}", e)))?;
 		Ok(MoveRuntime { vm, storage, state })
-	}
-
-	/// Run genesis by calling `kanari_system::genesis::init` with a fabricated TxContext
-	/// where sender = @0x0, tx_hash = zeros (32 bytes), epoch = 0, epoch_timestamp_ms = 0, ids_created = 0
-	pub fn run_genesis(&mut self) -> Result<()> {
-		// build a MoveValue::Struct representing TxContext { sender, tx_hash, epoch, epoch_timestamp_ms, ids_created }
-		let sender = MoveAccountAddress::ZERO;
-		let tx_hash_bytes = vec![0u8; 32];
-		let tx_hash_val = MoveValue::vector_u8(tx_hash_bytes);
-		let fields = vec![
-			MoveValue::Address(sender),
-			tx_hash_val,
-			MoveValue::U64(0),
-			MoveValue::U64(0),
-			MoveValue::U64(0),
-		];
-		let txctx = MoveValue::Struct(MoveStruct::new(fields));
-		let arg = txctx.simple_serialize().ok_or_else(|| anyhow::anyhow!("failed to serialize TxContext"))?;
-
-		// prepare session and execute
-		let storage_clone = self.storage.clone();
-		let mut session = self.vm.new_session(storage_clone);
-		let mut gas = UnmeteredGasMeter;
-
-		// build module id for kanari_system::genesis
-		let addr = MoveAccountAddress::from_hex_literal("0x2").map_err(|e| anyhow::anyhow!(e.to_string()))?;
-		let name = MoveIdentifier::new("genesis").map_err(|e| anyhow::anyhow!(e.to_string()))?;
-		let module_id = MoveModuleId::new(addr, name);
-
-		let ident = move_core_types::identifier::IdentStr::new("init").map_err(|e| anyhow::anyhow!(e.to_string()))?;
-
-		session.execute_entry_function(&module_id, ident, vec![], vec![arg], &mut gas)
-			.map_err(|e| anyhow::anyhow!(format!("genesis exec error: {:?}", e)))?;
-
-		let (res, new_storage) = session.finish();
-		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
-
-		let mut storage = new_storage;
-		storage.apply(changeset).map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
-		self.storage = storage;
-		Ok(())
 	}
 
 	/// Publish a module (bytes) with the given sender address.
@@ -103,6 +59,80 @@ impl MoveRuntime {
 		let module_id = compiled.self_id();
 		self.state.save_module(&module_id, &module_bytes)?;
 
+		Ok(())
+	}
+
+	/// Publish a bundle of modules atomically. This helps resolving inter-module dependencies.
+	pub fn publish_module_bundle(&mut self, modules: Vec<Vec<u8>>, sender: AccountAddress) -> Result<()> {
+		let storage_clone = self.storage.clone();
+		let mut session = self.vm.new_session(storage_clone);
+		let mut gas = UnmeteredGasMeter;
+
+		session
+			.publish_module_bundle(modules.clone(), sender, &mut gas)
+			.map_err(|e| anyhow::anyhow!(format!("publish bundle error: {:?}", e)))?;
+
+		let (res, new_storage) = session.finish();
+		let (changeset, _events) = res.map_err(|e| anyhow::anyhow!(format!("finish error: {:?}", e)))?;
+
+		let mut storage = new_storage;
+		storage
+			.apply(changeset)
+			.map_err(|e| anyhow::anyhow!(format!("apply error: {:?}", e)))?;
+
+		// update runtime storage
+		self.storage = storage.clone();
+
+		// persist each compiled module to DB
+		for module_bytes in modules.into_iter() {
+			let compiled = CompiledModule::deserialize_with_defaults(&module_bytes)
+				.map_err(|e| anyhow::anyhow!(format!("deserialize error: {:?}", e)))?;
+			let module_id = compiled.self_id();
+			self.state.save_module(&module_id, &module_bytes)?;
+		}
+
+		Ok(())
+	}
+
+	/// Attempt to publish modules in an order that satisfies dependencies by retrying
+	/// individual publishes. Each module is published with its declared `self_id().address()` as sender.
+	pub fn publish_modules_ordered(&mut self, modules: Vec<Vec<u8>>) -> Result<()> {
+		use std::collections::VecDeque;
+		let mut queue: VecDeque<Vec<u8>> = VecDeque::from(modules);
+		let mut made_progress = true;
+		let mut last_err: Option<anyhow::Error> = None;
+
+		while !queue.is_empty() && made_progress {
+			made_progress = false;
+			let len = queue.len();
+			for _ in 0..len {
+				let bytes = queue.pop_front().unwrap();
+				// try to deserialize to get module address
+				match CompiledModule::deserialize_with_defaults(&bytes) {
+					Ok(compiled) => {
+						let mod_id = compiled.self_id();
+						let sender = AccountAddress::from_hex_literal(&format!("0x{}", mod_id.address().short_str_lossless())).unwrap_or(mod_id.address().clone());
+						let res = self.publish_module(bytes.clone(), sender);
+						match res {
+							Ok(()) => made_progress = true,
+							Err(e) => {
+								last_err = Some(e);
+								// push back for another attempt later
+								queue.push_back(bytes);
+							}
+						}
+					}
+					Err(e) => {
+						last_err = Some(anyhow::anyhow!(format!("deserialize error: {:?}", e)));
+						// cannot determine sender, give up on this module
+					}
+				}
+			}
+		}
+
+		if !queue.is_empty() {
+			return Err(last_err.unwrap_or_else(|| anyhow::anyhow!("failed to publish modules due to unresolved dependencies")));
+		}
 		Ok(())
 	}
 

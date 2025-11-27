@@ -34,10 +34,7 @@ impl KanariModule {
     pub fn function_names() -> KanariFunctions {
         KanariFunctions {
             new: "new",
-            init_genesis: "init_genesis",
             transfer: "transfer",
-            mint_to: "mint_to",
-            mint_balance: "mint_balance",
             burn: "burn",
         }
     }
@@ -66,10 +63,7 @@ impl KanariModule {
 /// Kanari module function names
 pub struct KanariFunctions {
     pub new: &'static str,
-    pub init_genesis: &'static str,
     pub transfer: &'static str,
-    pub mint_to: &'static str,
-    pub mint_balance: &'static str,
     pub burn: &'static str,
 }
 

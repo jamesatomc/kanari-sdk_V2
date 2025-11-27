@@ -1,19 +1,11 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use log::info;
-use std::fs;
-
-// Move VM imports
-use move_core_types::account_address::AccountAddress;
-
-// Kanari Crypto imports
+use std::str::FromStr;
+use kanari_types::address::Address;
 use kanari_crypto::{
-    keys::{generate_keypair, generate_mnemonic, CurveType},
-    wallet::{list_wallet_files, load_wallet, save_wallet},
+    keys::{generate_keypair, generate_mnemonic, keypair_from_mnemonic, CurveType},
+    wallet::{list_wallet_files, load_wallet, save_wallet, Wallet}, // added Wallet
 };
-
-use kanari_move_runtime::{MoveRuntime, MoveVMState};
-
 
 /// Kanari - A Move-based money transfer system
 #[derive(Parser)]
@@ -61,46 +53,83 @@ enum Commands {
         #[arg(long, default_value = "false")]
         show_secrets: bool,
     },
-
-    /// Signed transfer with wallet authentication
-    SignedTransfer {
-        /// Sender wallet address
-        #[arg(short, long)]
-        from: String,
-        /// Recipient address
-        #[arg(short, long)]
-        to: String,
-        /// Amount to transfer in KANARI (e.g., 0.5 for 0.5 KANARI)
-        #[arg(short, long)]
-        amount: f64,
-        /// Wallet password
-        #[arg(short, long)]
-        password: String,
-    },
-    /// Batch transfer to multiple recipients with wallet authentication
-    BatchTransfer {
-        /// Sender wallet address
-        #[arg(short, long)]
-        from: String,
-        /// Recipients (comma separated addresses)
-        #[arg(short, long)]
-        recipients: String,
-        /// Amounts (comma separated)
-        #[arg(short, long)]
-        amounts: String,
-        /// Wallet password
-        #[arg(short, long)]
-        password: String,
-    },
-    /// Reset all data (careful!)
-    Reset {
-        /// Confirm reset
-        #[arg(short, long)]
-        confirm: bool,
-    },
 }
 
+fn main() -> Result<()> {
+	let cli = Cli::parse();
 
-fn main() {
+	match cli.command {
+        Commands::CreateWallet { password, curve, words } => {
+            let curve_type = match curve.to_lowercase().as_str() {
+                "ed25519" => CurveType::Ed25519,
+                "k256" | "secp256k1" => CurveType::K256,
+                "p256" | "secp256r1" => CurveType::P256,
+                "dilithium2" => CurveType::Dilithium2,
+                "dilithium3" => CurveType::Dilithium3,
+                "dilithium5" => CurveType::Dilithium5,
+                "sphincs+" | "sphincsplus" => CurveType::SphincsPlusSha256Robust,
+                "ed25519+dilithium3" | "ed25519_dilithium3" => CurveType::Ed25519Dilithium3,
+                "k256+dilithium3" | "k256_dilithium3" => CurveType::K256Dilithium3,
+                other => {
+                    println!("Unknown curve '{}', falling back to Ed25519", other);
+                    CurveType::Ed25519
+                }
+            };
 
+            // For classical curves we can derive from a mnemonic; for PQC/hybrid generate directly
+            let (private_key, address_str, seed_phrase) = if curve_type.is_post_quantum() || curve_type.is_hybrid() {
+                let kp = generate_keypair(curve_type)
+                    .context("Failed to generate keypair")?;
+                (kp.private_key, kp.address, String::new())
+            } else {
+                let mnemonic = generate_mnemonic(words)
+                    .context("Failed to generate mnemonic")?;
+                let kp = keypair_from_mnemonic(&mnemonic, curve_type, "")
+                    .context("Failed to derive keypair from mnemonic")?;
+                (kp.private_key, kp.address, mnemonic)
+            };
+
+            let address = Address::from_str(&address_str)
+                .context("Generated invalid address")?;
+
+            // Save wallet
+            save_wallet(&address, &private_key, &seed_phrase, &password, curve_type)
+                .context("Failed to save wallet")?;
+
+            println!("Created wallet: {}", address_str);
+            if !seed_phrase.is_empty() {
+                println!("Seed phrase: {}", seed_phrase);
+            }
+
+            Ok(())
+        }
+
+		Commands::LoadWallet { address, password } => {
+            let wallet: Wallet = load_wallet(&address, &password)
+                .context("Failed to load wallet")?;
+            println!("Wallet loaded: {} (curve: {})", address, wallet.curve_type);
+			Ok(())
+		}
+
+		Commands::ListWallets => {
+			let wallets = list_wallet_files()
+				.context("Failed to list wallets")?;
+			println!("Found {} wallets", wallets.len());
+			Ok(())
+		}
+
+		Commands::WalletInfo { address, password, show_secrets } => {
+            let wallet = load_wallet(&address, &password)
+                .context("Failed to load wallet")?;
+            println!("Wallet info for {}", address);
+            if show_secrets {
+                println!("Private key: {}", wallet.private_key);
+                println!("Seed phrase: {}", wallet.seed_phrase);
+            } else {
+                println!("Address: {}", wallet.address.to_string());
+            }
+            Ok(())
+		}
+
+	}
 }
