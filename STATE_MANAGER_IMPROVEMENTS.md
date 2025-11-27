@@ -5,6 +5,7 @@
 ### 1. **Enhanced apply_changeset() Method**
 
 #### Total Supply Tracking
+
 ```rust
 // Track total supply change (for mint/burn operations)
 let mut supply_delta: i64 = 0;
@@ -28,11 +29,13 @@ if supply_delta != 0 {
 ```
 
 **Benefits:**
+
 - ✅ Automatically tracks supply changes from mint/burn
 - ✅ Protects against overflow/underflow
 - ✅ Maintains invariant: sum of balances = total_supply
 
 #### Enhanced Error Messages
+
 ```rust
 if account.balance < debit {
     anyhow::bail!(
@@ -70,6 +73,7 @@ pub fn validate_sequence(&self, address: &AccountAddress, expected_sequence: u64
 ```
 
 **Usage Pattern:**
+
 ```rust
 // Before executing transaction
 state.validate_sequence(&sender_address, tx.sequence)?;
@@ -81,6 +85,7 @@ state.apply_changeset(&changeset)?;
 ```
 
 **Benefits:**
+
 - ✅ Prevents replay attacks
 - ✅ Ensures transaction ordering
 - ✅ Handles new account case (sequence must be 0)
@@ -104,12 +109,13 @@ pub fn collect_gas(&mut self, gas_amount: u64) -> Result<()>
 ```
 
 **Migration Path:**
+
 - Old: `state.transfer(from, to, amount)` ❌
 - New: `state.apply_changeset(&changeset)` ✅
 
 ### 4. **Comprehensive Test Suite**
 
-#### New Tests Added:
+#### New Tests Added
 
 1. **test_total_supply_tracking**
    - Verifies mint increases supply
@@ -131,7 +137,8 @@ pub fn collect_gas(&mut self, gas_amount: u64) -> Result<()>
    - Verifies all balance changes
    - Checks sequence increment
 
-#### Test Results:
+#### Test Results
+
 ```
 running 10 tests
 test state::tests::test_apply_changeset_mint ... ok
@@ -223,22 +230,26 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured
 ## 🔒 Security Properties
 
 ### 1. **Move VM Enforcement**
+
 - All financial operations must go through Move VM
 - No direct Rust mutations of balances
 - Type system prevents bypassing
 
 ### 2. **Sequence Number Protection**
+
 - Prevents replay attacks
 - Ensures transaction ordering
 - Validates before execution
 
 ### 3. **Overflow Protection**
+
 ```rust
 account.balance.checked_add(amount)  // Returns None on overflow
 self.total_supply.checked_add(...)   // Safe arithmetic
 ```
 
 ### 4. **Supply Invariant**
+
 ```rust
 // Maintained: Σ(account.balance) = total_supply
 // Checked on every mint/burn operation
@@ -249,6 +260,7 @@ self.total_supply.checked_add(...)   // Safe arithmetic
 ### For Engine Code
 
 **Old Pattern** (❌):
+
 ```rust
 // Direct mutation - bypasses Move VM
 state.transfer(from, to, amount)?;
@@ -256,6 +268,7 @@ state.collect_gas(gas_cost)?;
 ```
 
 **New Pattern** (✅):
+
 ```rust
 // 1. Validate sequence
 state.validate_sequence(&sender_addr, tx.sequence)?;
@@ -270,12 +283,14 @@ state.apply_changeset(&changeset)?;
 ### For Gas Collection
 
 **Old Pattern** (❌):
+
 ```rust
 // Separate gas collection
 state.collect_gas(gas_amount)?;
 ```
 
 **New Pattern** (✅):
+
 ```rust
 // Include in ChangeSet
 changeset.collect_gas(dao_address, gas_amount);
