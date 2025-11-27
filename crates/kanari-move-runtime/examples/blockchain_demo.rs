@@ -1,5 +1,5 @@
 use anyhow::Result;
-use kanari_move_runtime::{BlockchainEngine, Transaction};
+use kanari_move_runtime::{BlockchainEngine, SignedTransaction, Transaction};
 
 fn main() -> Result<()> {
     println!("=== Kanari Blockchain Demo ===\n");
@@ -43,14 +43,16 @@ fn main() -> Result<()> {
 
     // Mint coins to test account
     let tx1 = Transaction::new_transfer("0x2".to_string(), "0x1".to_string(), 1000);
-    let tx1_hash = engine.submit_transaction(tx1)?;
+    let signed_tx1 = SignedTransaction::new(tx1);
+    let tx1_hash = engine.submit_transaction(signed_tx1)?;
     println!(
         "  ✅ Transfer transaction submitted: {}",
         hex::encode(&tx1_hash[..8])
     );
 
     let tx2 = Transaction::new_transfer("0x2".to_string(), "0x123".to_string(), 500);
-    let tx2_hash = engine.submit_transaction(tx2)?;
+    let signed_tx2 = SignedTransaction::new(tx2);
+    let tx2_hash = engine.submit_transaction(signed_tx2)?;
     println!(
         "  ✅ Transfer transaction submitted: {}",
         hex::encode(&tx2_hash[..8])
