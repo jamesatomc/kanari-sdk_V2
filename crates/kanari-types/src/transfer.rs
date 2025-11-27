@@ -71,6 +71,8 @@ impl TransferModule {
             get_from: "get_from",
             get_to: "get_to",
             total_amount: "total_amount",
+            public_freeze_object: "public_freeze_object",
+            public_transfer: "public_transfer",
         }
     }
 
@@ -88,6 +90,8 @@ pub struct TransferFunctions {
     pub get_from: &'static str,
     pub get_to: &'static str,
     pub total_amount: &'static str,
+    pub public_freeze_object: &'static str,
+    pub public_transfer: &'static str,
 }
 
 #[cfg(test)]

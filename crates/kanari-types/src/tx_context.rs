@@ -99,7 +99,8 @@ impl TxContextModule {
             epoch: "epoch",
             digest: "digest",
             epoch_timestamp_ms: "epoch_timestamp_ms",
-            ids_created: "get_ids_created",
+            fresh_object_address: "fresh_object_address",
+            derive_id: "derive_id",
         }
     }
 }
@@ -110,7 +111,8 @@ pub struct TxContextFunctions {
     pub epoch: &'static str,
     pub digest: &'static str,
     pub epoch_timestamp_ms: &'static str,
-    pub ids_created: &'static str,
+    pub fresh_object_address: &'static str,
+    pub derive_id: &'static str,
 }
 
 #[cfg(test)]

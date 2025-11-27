@@ -51,7 +51,7 @@ impl ModuleRegistry {
     /// Get function names for a specific module
     pub fn get_function_names(module_name: &str) -> Vec<&'static str> {
         match module_name {
-            Self::KANARI => vec!["new", "transfer", "burn"],
+            Self::KANARI => vec!["transfer", "burn"],
             Self::BALANCE => vec![
                 "zero",
                 "create",
@@ -81,14 +81,23 @@ impl ModuleRegistry {
             ],
             Self::OBJECT => vec!["new", "uid_address", "id_address_as_u64", "id_bytes"],
             Self::TRANSFER => vec![
-                "is_valid_amount",
                 "create_transfer",
-                "from",
-                "to",
-                "amount",
-                "execute",
+                "get_amount",
+                "get_from",
+                "get_to",
+                "total_amount",
+                "is_valid_amount",
+                "public_freeze_object",
+                "public_transfer",
             ],
-            Self::TX_CONTEXT => vec!["sender", "epoch", "digest", "epoch_timestamp_ms", "fresh_object_address", "ids_created"],
+            Self::TX_CONTEXT => vec![
+                "sender",
+                "digest",
+                "epoch",
+                "epoch_timestamp_ms",
+                "fresh_object_address",
+                "derive_id",
+            ],
             _ => vec![],
         }
     }
