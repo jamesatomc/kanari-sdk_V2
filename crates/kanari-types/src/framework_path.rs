@@ -1,5 +1,5 @@
+use anyhow::{Context, Result};
 use std::path::PathBuf;
-use anyhow::{Result, Context};
 
 /// Framework path resolver for Kanari Move packages
 pub struct FrameworkPath;
@@ -9,7 +9,7 @@ impl FrameworkPath {
     fn workspace_root() -> PathBuf {
         // Try to find workspace root by looking for Cargo.toml
         let mut current = std::env::current_dir().unwrap_or_default();
-        
+
         loop {
             let cargo_toml = current.join("Cargo.toml");
             if cargo_toml.exists() {
@@ -20,7 +20,7 @@ impl FrameworkPath {
                     }
                 }
             }
-            
+
             // Move up one directory
             if !current.pop() {
                 // Fallback to current directory if we can't find workspace root
@@ -93,33 +93,34 @@ impl FrameworkPath {
     /// Get all Move module files from a directory
     pub fn get_module_files(dir: &PathBuf) -> Result<Vec<PathBuf>> {
         let mut modules = Vec::new();
-        
+
         for entry in std::fs::read_dir(dir)
-            .with_context(|| format!("Failed to read directory: {}", dir.display()))? 
+            .with_context(|| format!("Failed to read directory: {}", dir.display()))?
         {
             let entry = entry?;
             let path = entry.path();
-            
+
             // Skip directories
             if path.is_dir() {
                 continue;
             }
-            
+
             // Only include .mv files
             if path.extension().and_then(|s| s.to_str()) == Some("mv") {
                 modules.push(path);
             }
         }
-        
+
         // Sort for deterministic order
         modules.sort();
-        
+
         Ok(modules)
     }
 
     /// Read module bytecode from files
     pub fn read_modules(paths: &[PathBuf]) -> Result<Vec<Vec<u8>>> {
-        paths.iter()
+        paths
+            .iter()
             .map(|path| {
                 std::fs::read(path)
                     .with_context(|| format!("Failed to read module: {}", path.display()))
@@ -142,7 +143,7 @@ mod tests {
     fn test_path_construction() {
         let kanari_path = FrameworkPath::kanari_system_modules();
         assert!(kanari_path.to_string_lossy().contains("kanari-system"));
-        
+
         let stdlib_path = FrameworkPath::move_stdlib_modules();
         assert!(stdlib_path.to_string_lossy().contains("move-stdlib"));
     }

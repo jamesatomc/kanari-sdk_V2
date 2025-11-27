@@ -67,7 +67,6 @@ pub struct KanariFunctions {
     pub burn: &'static str,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,4 +117,3 @@ mod tests {
         assert!(module_id.is_ok());
     }
 }
-

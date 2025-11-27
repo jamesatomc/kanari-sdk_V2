@@ -1,8 +1,8 @@
 use anyhow::Result;
+use kanari_crypto::keys::CurveType;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
-use kanari_crypto::keys::CurveType;
 
 /// Signed transaction wrapper
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,12 +28,14 @@ impl SignedTransaction {
     }
 
     pub fn verify_signature(&self) -> Result<bool> {
-        let signature = self.signature.as_ref()
+        let signature = self
+            .signature
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Transaction not signed"))?;
-        
+
         let tx_hash = self.transaction.hash();
         let sender = self.transaction.sender_address();
-        
+
         kanari_crypto::verify_signature(sender, &tx_hash, signature)
             .map_err(|e| anyhow::anyhow!("Signature verification failed: {}", e))
     }
@@ -153,8 +155,8 @@ impl Transaction {
             from,
             to,
             amount,
-            gas_limit: 100_000,  // Default gas limit
-            gas_price: 1000,     // Default gas price (1000 Mist)
+            gas_limit: 100_000, // Default gas limit
+            gas_price: 1000,    // Default gas price (1000 Mist)
         }
     }
 }
@@ -266,10 +268,10 @@ mod tests {
     fn test_add_block() {
         let mut chain = Blockchain::new();
         let prev_hash = chain.latest_block().hash();
-        
+
         let block = Block::new(1, prev_hash, vec![]);
         chain.add_block(block).unwrap();
-        
+
         assert_eq!(chain.height(), 1);
         assert_eq!(chain.blocks.len(), 2);
     }
@@ -278,22 +280,18 @@ mod tests {
     fn test_block_verification() {
         let chain = Blockchain::new();
         let prev_block = chain.latest_block();
-        
+
         let valid_block = Block::new(1, prev_block.hash(), vec![]);
         assert!(valid_block.verify(prev_block).is_ok());
-        
+
         let invalid_block = Block::new(2, prev_block.hash(), vec![]);
         assert!(invalid_block.verify(prev_block).is_err());
     }
 
     #[test]
     fn test_transaction_hash() {
-        let tx = Transaction::new_transfer(
-            "0x1".to_string(),
-            "0x2".to_string(),
-            1000,
-        );
-        
+        let tx = Transaction::new_transfer("0x1".to_string(), "0x2".to_string(), 1000);
+
         let hash1 = tx.hash();
         let hash2 = tx.hash();
         assert_eq!(hash1, hash2);

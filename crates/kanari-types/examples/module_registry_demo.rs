@@ -20,9 +20,15 @@ fn main() -> Result<()> {
 
     // 3. Check if specific modules exist
     println!("✅ Module Existence Checks:");
-    println!("  kanari exists: {}", ModuleRegistry::module_exists("kanari"));
+    println!(
+        "  kanari exists: {}",
+        ModuleRegistry::module_exists("kanari")
+    );
     println!("  coin exists: {}", ModuleRegistry::module_exists("coin"));
-    println!("  invalid exists: {}", ModuleRegistry::module_exists("invalid"));
+    println!(
+        "  invalid exists: {}",
+        ModuleRegistry::module_exists("invalid")
+    );
     println!();
 
     // 4. Check if specific functions exist

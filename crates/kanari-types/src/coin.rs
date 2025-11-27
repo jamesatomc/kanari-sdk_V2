@@ -120,7 +120,6 @@ pub struct CoinFunctions {
     pub join: &'static str,
     pub treasury_into_supply: &'static str,
     pub into_balance: &'static str,
-
 }
 
 #[cfg(test)]

@@ -5,13 +5,13 @@ use serde::{Deserialize, Serialize};
 pub struct GasConfig {
     /// Base gas price per unit (in Mist)
     pub base_price: u64,
-    
+
     /// Maximum gas units per transaction
     pub max_gas_per_tx: u64,
-    
+
     /// Maximum gas units per block
     pub max_gas_per_block: u64,
-    
+
     /// Minimum gas price (in Mist)
     pub min_gas_price: u64,
 }
@@ -77,10 +77,10 @@ impl GasOperation {
 pub struct GasMeter {
     /// Gas units used
     pub gas_used: u64,
-    
+
     /// Gas price per unit (in Mist)
     pub gas_price: u64,
-    
+
     /// Maximum gas allowed
     pub gas_limit: u64,
 }
@@ -96,7 +96,9 @@ impl GasMeter {
 
     /// Consume gas for an operation
     pub fn consume(&mut self, gas_units: u64) -> Result<(), GasError> {
-        let new_usage = self.gas_used.checked_add(gas_units)
+        let new_usage = self
+            .gas_used
+            .checked_add(gas_units)
             .ok_or(GasError::Overflow)?;
 
         if new_usage > self.gas_limit {
@@ -174,13 +176,28 @@ impl std::fmt::Display for GasError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GasError::OutOfGas { required, limit } => {
-                write!(f, "Out of gas: required {} but limit is {}", required, limit)
+                write!(
+                    f,
+                    "Out of gas: required {} but limit is {}",
+                    required, limit
+                )
             }
-            GasError::InsufficientBalance { required, available } => {
-                write!(f, "Insufficient balance for gas: required {} Mist but only {} available", required, available)
+            GasError::InsufficientBalance {
+                required,
+                available,
+            } => {
+                write!(
+                    f,
+                    "Insufficient balance for gas: required {} Mist but only {} available",
+                    required, available
+                )
             }
             GasError::PriceTooLow { provided, minimum } => {
-                write!(f, "Gas price too low: provided {} but minimum is {}", provided, minimum)
+                write!(
+                    f,
+                    "Gas price too low: provided {} but minimum is {}",
+                    provided, minimum
+                )
             }
             GasError::Overflow => write!(f, "Gas calculation overflow"),
         }
@@ -228,7 +245,7 @@ mod tests {
     #[test]
     fn test_gas_meter_consume() {
         let mut meter = GasMeter::new(100_000, 1000);
-        
+
         assert!(meter.consume(21_000).is_ok());
         assert_eq!(meter.gas_used, 21_000);
         assert_eq!(meter.remaining(), 79_000);
@@ -237,7 +254,7 @@ mod tests {
     #[test]
     fn test_gas_meter_out_of_gas() {
         let mut meter = GasMeter::new(10_000, 1000);
-        
+
         let result = meter.consume(15_000);
         assert!(result.is_err());
     }
@@ -246,7 +263,7 @@ mod tests {
     fn test_gas_operation_costs() {
         assert_eq!(GasOperation::Transfer.gas_units(), 21_000);
         assert_eq!(GasOperation::CreateAccount.gas_units(), 25_000);
-        
+
         let publish = GasOperation::PublishModule { module_size: 1000 };
         assert_eq!(publish.gas_units(), 60_000); // 50_000 + 1000*10
     }
@@ -263,7 +280,7 @@ mod tests {
     fn test_gas_meter_total_cost() {
         let mut meter = GasMeter::new(100_000, 1500);
         meter.consume(21_000).unwrap();
-        
+
         assert_eq!(meter.total_cost(), 31_500_000); // 21_000 * 1500
     }
 
@@ -271,7 +288,7 @@ mod tests {
     fn test_gas_usage_percentage() {
         let mut meter = GasMeter::new(100_000, 1000);
         meter.consume(25_000).unwrap();
-        
+
         assert_eq!(meter.usage_percentage(), 25.0);
     }
 
@@ -280,7 +297,7 @@ mod tests {
         let mut tx_gas = TransactionGas::new(100_000, 1000);
         tx_gas.gas_used = 21_000;
         tx_gas.gas_refund = 5_000;
-        
+
         assert_eq!(tx_gas.total_cost(), 21_000_000);
         assert_eq!(tx_gas.refund_amount(), 5_000_000);
         assert_eq!(tx_gas.net_cost(), 16_000_000);

@@ -20,8 +20,11 @@ members = [
       "crates/kanari-framework-builder",
       "crates/kanari-frameworks", 
       "crates/kanari-move-runtime", 
-      "crates/kanari-types"
-      ,"crates/kanari-node"
+      "crates/kanari-types",
+      "crates/kanari-node",
+      "crates/kanari-rpc-api", 
+      "crates/kanari-rpc-client", 
+      "crates/kanari-rpc-server"
 ]
 
 # Dependencies that should be kept in sync through the whole workspace

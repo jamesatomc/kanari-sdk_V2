@@ -39,7 +39,8 @@ impl ObjectModule {
         let address = AccountAddress::from_hex_literal(Address::KANARI_SYSTEM_ADDRESS)
             .context("Invalid system address")?;
 
-        let module_name = Identifier::new(Self::OBJECT_MODULE).context("Invalid object module name")?;
+        let module_name =
+            Identifier::new(Self::OBJECT_MODULE).context("Invalid object module name")?;
 
         Ok(ModuleId::new(address, module_name))
     }

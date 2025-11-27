@@ -83,13 +83,7 @@ impl ModuleRegistry {
                 "amount",
                 "execute",
             ],
-            Self::TX_CONTEXT => vec![
-                "sender",
-                "epoch",
-                "digest",
-                "fresh_id",
-                "ids_created",
-            ],
+            Self::TX_CONTEXT => vec!["sender", "epoch", "digest", "fresh_id", "ids_created"],
             _ => vec![],
         }
     }
@@ -265,7 +259,10 @@ mod tests {
     #[test]
     fn test_function_exists() {
         assert!(ModuleRegistry::function_exists("kanari", "transfer"));
-        assert!(!ModuleRegistry::function_exists("kanari", "invalid_function"));
+        assert!(!ModuleRegistry::function_exists(
+            "kanari",
+            "invalid_function"
+        ));
     }
 
     #[test]
@@ -308,7 +305,7 @@ mod tests {
     fn test_all_modules_info() {
         let infos = ModuleRegistry::all_modules_info();
         assert_eq!(infos.len(), 6);
-        
+
         for info in infos {
             assert!(!info.name.is_empty());
             assert!(!info.functions.is_empty());

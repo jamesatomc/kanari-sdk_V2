@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use bcs;
+use serde::{Deserialize, Serialize};
 
 /// Block header used to identify a block
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
