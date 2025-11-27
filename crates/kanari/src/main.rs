@@ -10,6 +10,9 @@ use kanari_types::address::Address;
 use kanari_types::module_registry::ModuleRegistry;
 use std::str::FromStr;
 
+pub mod command;
+use command::move_cli;
+
 /// Kanari - A Move-based money transfer system
 #[derive(Parser)]
 #[command(name = "kanari")]
@@ -81,6 +84,11 @@ enum Commands {
     Stats,
     /// Show available Move modules
     Modules,
+    /// Manage Move packages and tools
+    Move {
+        #[command(subcommand)]
+        command: move_cli::MoveCommand,
+    },
 }
 
 fn main() -> Result<()> {
@@ -339,6 +347,15 @@ fn main() -> Result<()> {
 
             println!("\n─────────────────────────────────");
             println!("Total modules: {}", ModuleRegistry::all_modules().len());
+
+            Ok(())
+        }
+
+        Commands::Move { command } => {
+            // Dispatch into the move CLI helper
+            command
+                .execute()
+                .context("Failed to execute move subcommand")?;
 
             Ok(())
         }

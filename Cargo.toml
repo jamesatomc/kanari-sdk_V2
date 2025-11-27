@@ -82,4 +82,4 @@ move-abstract-stack = { path = "third_party/move/crates/move-abstract-stack" }
 move-docgen = { path = "third_party/move/crates/move-docgen" }
 move-errmapgen = { path = "third_party/move/crates/move-errmapgen" }
 move-stdlib-natives = { path = "third_party/move/crates/move-stdlib-natives" }
-
+move-coverage = { path = "third_party/move/crates/move-coverage" }
