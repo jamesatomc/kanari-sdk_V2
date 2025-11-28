@@ -4,6 +4,7 @@ use kanari_types::address::Address as KanariAddress;
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use kanari_crypto::hash_data_blake3;
 
 /// Account state in the blockchain
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,9 +252,8 @@ impl StateManager {
     }
 
     pub fn compute_state_root(&self) -> Vec<u8> {
-        use sha2::{Digest, Sha256};
         let serialized = serde_json::to_vec(&self.accounts).unwrap();
-        Sha256::digest(&serialized).to_vec()
+        hash_data_blake3(&serialized)
     }
 
     /// Collect gas fees - DEPRECATED, should be part of ChangeSet

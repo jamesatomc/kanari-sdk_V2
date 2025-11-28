@@ -1,7 +1,7 @@
 use anyhow::Result;
 use kanari_crypto::keys::CurveType;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use kanari_crypto::hash_data_blake3;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Signed transaction wrapper
@@ -42,7 +42,7 @@ impl SignedTransaction {
 
     pub fn hash(&self) -> Vec<u8> {
         let serialized = serde_json::to_vec(self).unwrap();
-        Sha256::digest(&serialized).to_vec()
+        hash_data_blake3(&serialized)
     }
 }
 
@@ -74,7 +74,7 @@ impl BlockHeader {
 
     pub fn hash(&self) -> Vec<u8> {
         let serialized = serde_json::to_vec(self).unwrap();
-        Sha256::digest(&serialized).to_vec()
+        hash_data_blake3(&serialized)
     }
 }
 
@@ -112,7 +112,7 @@ pub enum Transaction {
 impl Transaction {
     pub fn hash(&self) -> Vec<u8> {
         let serialized = serde_json::to_vec(self).unwrap();
-        Sha256::digest(&serialized).to_vec()
+        hash_data_blake3(&serialized)
     }
 
     pub fn sender(&self) -> &str {

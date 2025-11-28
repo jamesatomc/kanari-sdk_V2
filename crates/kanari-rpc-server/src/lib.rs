@@ -225,7 +225,7 @@ async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest)
     };
 
     // Parse sender address
-    let sender = match Address::from_hex(&tx_data.sender) {
+    let sender = match Address::from_hex_literal(&tx_data.sender) {
         Ok(addr) => addr,
         Err(e) => {
             error!("Invalid sender address: {}", e);
@@ -243,7 +243,7 @@ async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest)
 
     // Parse recipient address if present
     let recipient = if let Some(ref recipient_str) = tx_data.recipient {
-        match Address::from_hex(recipient_str) {
+        match Address::from_hex_literal(recipient_str) {
             Ok(addr) => Some(addr),
             Err(e) => {
                 error!("Invalid recipient address: {}", e);
@@ -345,7 +345,7 @@ async fn handle_publish_module(state: &RpcServerState, request: &RpcRequest) -> 
     };
 
     // Validate sender address
-    if let Err(e) = Address::from_hex(&module_data.sender) {
+    if let Err(e) = Address::from_hex_literal(&module_data.sender) {
         error!("Invalid sender address: {}", e);
         return RpcResponse {
             jsonrpc: "2.0".to_string(),
@@ -425,7 +425,7 @@ async fn handle_call_function(state: &RpcServerState, request: &RpcRequest) -> R
     };
 
     // Validate addresses
-    if let Err(e) = Address::from_hex(&call_data.sender) {
+    if let Err(e) = Address::from_hex_literal(&call_data.sender) {
         error!("Invalid sender address: {}", e);
         return RpcResponse {
             jsonrpc: "2.0".to_string(),
@@ -438,7 +438,7 @@ async fn handle_call_function(state: &RpcServerState, request: &RpcRequest) -> R
         };
     }
 
-    if let Err(e) = Address::from_hex(&call_data.package) {
+    if let Err(e) = Address::from_hex_literal(&call_data.package) {
         error!("Invalid package address: {}", e);
         return RpcResponse {
             jsonrpc: "2.0".to_string(),

@@ -23,8 +23,8 @@ env_logger = "0.11"
 axum = { version = "0.8", optional = true }
 tower = { version = "0.5", optional = true }
 
-# IOTA SDK (if available)
-# iota-sdk = "1.0"
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+
 
 # Cryptography
 hex = "0.4"

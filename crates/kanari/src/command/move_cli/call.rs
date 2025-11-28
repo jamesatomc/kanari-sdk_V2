@@ -56,7 +56,7 @@ pub struct Call {
     pub skip_signature: bool,
 
     /// RPC endpoint
-    #[clap(long = "rpc", default_value = "http://localhost:9944")]
+    #[clap(long = "rpc", default_value = "http://localhost:3000")]
     pub rpc_endpoint: String,
 
     /// Dry run (estimate gas without executing)
@@ -68,11 +68,25 @@ impl Call {
     pub fn execute(self) -> Result<()> {
         println!("📞 Preparing function call...");
 
-        // Validate addresses
-        let _package_addr = Address::from_hex(&self.package)
-            .with_context(|| format!("Invalid package address: {}", self.package))?;
-        let _sender_addr = Address::from_hex(&self.sender)
+        // Normalize and validate addresses
+        let normalize_addr = |a: &str| -> Result<String> {
+            let s = a.trim();
+            let hex = if s.starts_with("0x") || s.starts_with("0X") { &s[2..] } else { s };
+            if hex.len() > 64 {
+                anyhow::bail!("Address too long: {}", a);
+            }
+            Ok(format!("0x{:0>64}", hex))
+        };
+
+        let sender_normalized = normalize_addr(&self.sender)
             .with_context(|| format!("Invalid sender address: {}", self.sender))?;
+        let package_normalized = normalize_addr(&self.package)
+            .with_context(|| format!("Invalid package address: {}", self.package))?;
+
+        let _sender_addr = Address::from_hex_literal(&sender_normalized)
+            .with_context(|| format!("Invalid sender address: {}", self.sender))?;
+        let _package_addr = Address::from_hex_literal(&package_normalized)
+            .with_context(|| format!("Invalid package address: {}", self.package))?;
 
         println!("\n📋 Call Details:");
         println!("   Package: {}", self.package);
@@ -143,24 +157,81 @@ impl Call {
         // Create transaction
         println!("\n🔨 Creating transaction...");
 
-        if let Some(ref wallet) = wallet {
-            println!(
-                "   🔑 Signing transaction with {} key...",
-                wallet.curve_type
-            );
+        // Sign transaction if wallet is available
+        let signature = if let Some(ref wallet) = wallet {
+            // Create proper Transaction to match server's expectation
+            use kanari_move_runtime::Transaction;
+            let transaction = Transaction::ExecuteFunction {
+                sender: sender_normalized.clone(),
+                module: package_normalized.clone(),
+                function: self.function.clone(),
+                type_args: self.type_args.clone(),
+                args: _args.clone(),
+                gas_limit: self.gas_limit,
+                gas_price: self.gas_price,
+            };
+            
+            // Get transaction hash (same way server does it)
+            let tx_hash = transaction.hash();
 
-            // In production, this would:
-            // 1. Create ContractCall
-            // 2. Sign with wallet private key
-            // 3. Submit to RPC endpoint
-            // 4. Wait for confirmation
+            // Sign with wallet
+            match kanari_crypto::sign_message(&wallet.private_key, &tx_hash, wallet.curve_type) {
+                Ok(sig) => {
+                    println!("   🔐 Transaction signed with {} key", wallet.curve_type);
+                    Some(sig)
+                }
+                Err(e) => {
+                    eprintln!("   ⚠️  Failed to sign transaction: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
-            println!("   ⚠️  Not yet implemented: Blockchain submission");
+        // Build CallFunctionRequest and wrap into RpcRequest
+        use kanari_rpc_api::{methods, CallFunctionRequest, RpcRequest, RpcResponse};
+        use reqwest::blocking::Client;
+
+        let call_req = CallFunctionRequest {
+            sender: sender_normalized,
+            package: package_normalized,
+            module: self.module.clone(),
+            function: self.function.clone(),
+            type_args: self.type_args.clone(),
+            args: _args.clone(),
+            gas_limit: self.gas_limit,
+            gas_price: self.gas_price,
+            signature,
+        };
+
+        let rpc_request = RpcRequest {
+            jsonrpc: "2.0".to_string(),
+            method: methods::CALL_FUNCTION.to_string(),
+            params: serde_json::to_value(call_req).unwrap_or(serde_json::json!(null)),
+            id: 1,
+        };
+
+        println!("\n🔁 Sending RPC request to {} ...", self.rpc_endpoint);
+
+        let client = Client::new();
+        match client.post(&self.rpc_endpoint).json(&rpc_request).send() {
+            Ok(resp) => match resp.json::<RpcResponse>() {
+                Ok(rpc_resp) => {
+                    if let Some(err) = rpc_resp.error {
+                        eprintln!("RPC error: {} (code {})", err.message, err.code);
+                    } else if let Some(result) = rpc_resp.result {
+                        println!("RPC result: {}", result);
+                    } else {
+                        println!("RPC response has no result and no error");
+                    }
+                }
+                Err(e) => eprintln!("Failed to parse RPC response: {}", e),
+            },
+            Err(e) => eprintln!("Failed to send RPC request: {}", e),
         }
 
-        println!("\n✅ Function call prepared!");
-        println!("⚠️  Note: Blockchain submission not yet implemented");
-        println!("   Use `execute_with_engine()` method for direct engine access");
+        println!("\n✅ Function call prepared and RPC sent (see output above)");
 
         println!("\n💡 Next steps:");
         println!("   • Check transaction status");
@@ -242,7 +313,7 @@ mod tests {
             gas_price: 1000,
             password: None,
             skip_signature: true,
-            rpc_endpoint: "http://localhost:9944".to_string(),
+            rpc_endpoint: "http://localhost:3000".to_string(),
             dry_run: false,
         };
 
@@ -272,7 +343,7 @@ mod tests {
             gas_price: 1000,
             password: None,
             skip_signature: true,
-            rpc_endpoint: "http://localhost:9944".to_string(),
+            rpc_endpoint: "http://localhost:3000".to_string(),
             dry_run: false,
         };
 

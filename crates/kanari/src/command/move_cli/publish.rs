@@ -46,16 +46,25 @@ impl Publish {
     pub fn execute(self, path: Option<PathBuf>, config: BuildConfig) -> Result<()> {
         let rerooted_path = reroot_path(path.or(self.package_path.clone()))?;
 
-        // Validate sender address
-        let _sender_addr = Address::from_hex(&self.sender)
+        // Validate sender address: normalize to 0x-prefixed format
+        let sender_normalized = {
+            let s = self.sender.trim();
+            let hex = if s.starts_with("0x") || s.starts_with("0X") { &s[2..] } else { s };
+            if hex.len() > 64 {
+                bail!("Sender address too long: {}", self.sender);
+            }
+            format!("0x{:0>64}", hex)
+        };
+
+        let _sender_addr = Address::from_hex_literal(&sender_normalized)
             .with_context(|| format!("Invalid sender address: {}", self.sender))?;
 
-        println!("📦 Building Move package...");
+        println!("Building Move package...");
 
         // Build the package
         let compiled_package = config.compile_package(&rerooted_path, &mut std::io::stderr())?;
 
-        println!("✅ Package compiled successfully!");
+        println!("Package compiled successfully!");
         println!("   Modules: {}", compiled_package.all_modules().count());
 
         // Get compiled modules
@@ -66,7 +75,7 @@ impl Publish {
         }
 
         // Load wallet if not skipping signature
-        let wallet = if !self.skip_signature {
+        let _wallet = if !self.skip_signature {
             let password = self
                 .password
                 .as_ref()
@@ -77,28 +86,52 @@ impl Publish {
             )?;
 
             println!(
-                "🔐 Wallet loaded: {} (curve: {})",
+                "Wallet loaded: {} (curve: {})",
                 self.sender, w.curve_type
             );
             Some(w)
         } else {
-            println!("⚠️  Test mode: Skipping signature");
+            println!("Test mode: Skipping signature");
             None
         };
 
-        println!("\n📤 Publishing modules to blockchain...");
+        println!("\nPublishing modules to blockchain...");
         println!("   RPC: {}", self.rpc_endpoint);
+        println!("   Sender: {}", sender_normalized);
+
+        let mut published_count = 0;
+        let mut skipped_count = 0;
 
         for module_unit in &modules {
             let module = &module_unit.unit.module;
             let module_name = module.self_id().name().to_string();
+            let module_address = module.self_id().address().to_string();
+            
+            // Normalize module address for comparison
+            let module_addr_normalized = {
+                let hex = if module_address.starts_with("0x") || module_address.starts_with("0X") {
+                    &module_address[2..]
+                } else {
+                    &module_address
+                };
+                format!("0x{:0>64}", hex)
+            };
+
+            // Only publish modules where the module address matches the sender
+            if module_addr_normalized.to_lowercase() != sender_normalized.to_lowercase() {
+                println!("\n   ⏭️  Skipping Module: {} (address {} doesn't match sender)", 
+                    module_name, module_address);
+                skipped_count += 1;
+                continue;
+            }
+
             let module_bytecode = {
                 let mut bytes = vec![];
                 module.serialize(&mut bytes)?;
                 bytes
             };
 
-            println!("\n  📝 Module: {}", module_name);
+            println!("\n   Module: {}", module_name);
             println!("     Size: {} bytes", module_bytecode.len());
             println!("     Address: {}", module.self_id().address());
             println!("     Functions: {}", module.function_defs.len());
@@ -115,31 +148,85 @@ impl Publish {
 
             if estimated_gas > self.gas_limit {
                 eprintln!(
-                    "     ⚠️  Warning: Estimated gas ({}) exceeds limit ({})",
+                    "     Warning: Estimated gas ({}) exceeds limit ({})",
                     estimated_gas, self.gas_limit
                 );
             }
 
-            // Create and sign transaction
-            if let Some(ref wallet) = wallet {
-                println!(
-                    "     🔑 Signing transaction with {} key...",
-                    wallet.curve_type
-                );
+            // Create PublishModuleRequest and submit to RPC endpoint
+            use kanari_rpc_api::{methods, PublishModuleRequest, RpcRequest, RpcResponse};
+            use reqwest::blocking::Client;
 
-                // In production, this would:
-                // 1. Create proper transaction with module bytecode
-                // 2. Sign with wallet private key
-                // 3. Broadcast to RPC endpoint
-                // 4. Wait for confirmation
+            // Sign transaction if wallet is available
+            let signature = if let Some(ref wallet) = _wallet {
+                // Create proper Transaction to match server's expectation
+                use kanari_move_runtime::Transaction;
+                let transaction = Transaction::PublishModule {
+                    sender: sender_normalized.clone(),
+                    module_bytes: module_bytecode.clone(),
+                    module_name: module_name.clone(),
+                    gas_limit: self.gas_limit,
+                    gas_price: self.gas_price,
+                };
+                
+                // Get transaction hash (same way server does it)
+                let tx_hash = transaction.hash();
 
-                println!("     ⚠️  Not yet implemented: Blockchain submission");
+                // Sign with wallet
+                match kanari_crypto::sign_message(&wallet.private_key, &tx_hash, wallet.curve_type) {
+                    Ok(sig) => {
+                        println!("     🔐 Transaction signed with {} key", wallet.curve_type);
+                        Some(sig)
+                    }
+                    Err(e) => {
+                        eprintln!("     ⚠️  Failed to sign transaction: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            let pub_req = PublishModuleRequest {
+                sender: sender_normalized.clone(),
+                module_bytes: module_bytecode.clone(),
+                module_name: module_name.clone(),
+                gas_limit: self.gas_limit,
+                gas_price: self.gas_price,
+                signature,
+            };
+
+            let rpc_request = RpcRequest {
+                jsonrpc: "2.0".to_string(),
+                method: methods::PUBLISH_MODULE.to_string(),
+                params: serde_json::to_value(pub_req).unwrap_or(serde_json::json!(null)),
+                id: 1,
+            };
+
+            println!("     🔁 Sending publish RPC to {} ...", self.rpc_endpoint);
+            let client = Client::new();
+            match client.post(&self.rpc_endpoint).json(&rpc_request).send() {
+                Ok(resp) => match resp.json::<RpcResponse>() {
+                    Ok(rpc_resp) => {
+                        if let Some(err) = rpc_resp.error {
+                            eprintln!("     RPC error: {} (code {})", err.message, err.code);
+                        } else if let Some(result) = rpc_resp.result {
+                            println!("     RPC result: {}", result);
+                        } else {
+                            println!("     RPC response has no result and no error");
+                        }
+                    }
+                    Err(e) => eprintln!("     Failed to parse RPC response: {}", e),
+                },
+                Err(e) => eprintln!("     Failed to send RPC request: {}", e),
             }
+            
+            published_count += 1;
         }
 
         println!("\n✅ Package build and validation complete!");
-        println!("⚠️  Note: Blockchain submission not yet implemented");
-        println!("   Use `execute_with_engine()` method for direct engine access");
+        println!("   Published: {} modules", published_count);
+        println!("   Skipped: {} dependency modules", skipped_count);
 
         Ok(())
     }
