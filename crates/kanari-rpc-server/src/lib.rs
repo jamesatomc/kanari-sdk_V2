@@ -50,6 +50,10 @@ async fn handle_rpc(
         methods::GET_BLOCK_HEIGHT => handle_get_block_height(&state, &request).await,
         methods::GET_STATS => handle_get_stats(&state, &request).await,
         methods::SUBMIT_TRANSACTION => handle_submit_transaction(&state, &request).await,
+        methods::PUBLISH_MODULE => handle_publish_module(&state, &request).await,
+        methods::CALL_FUNCTION => handle_call_function(&state, &request).await,
+        methods::GET_CONTRACT => handle_get_contract(&state, &request).await,
+        methods::LIST_CONTRACTS => handle_list_contracts(&state, &request).await,
         _ => RpcResponse {
             jsonrpc: "2.0".to_string(),
             result: None,
@@ -203,7 +207,6 @@ async fn handle_get_stats(state: &RpcServerState, request: &RpcRequest) -> RpcRe
 async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
     use kanari_move_runtime::SignedTransaction;
     use kanari_types::address::Address;
-    use std::str::FromStr;
 
     let tx_data: SignedTransactionData = match serde_json::from_value(request.params.clone()) {
         Ok(data) => data,
@@ -222,7 +225,7 @@ async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest)
     };
 
     // Parse sender address
-    let sender = match Address::from_str(&tx_data.sender) {
+    let sender = match Address::from_hex(&tx_data.sender) {
         Ok(addr) => addr,
         Err(e) => {
             error!("Invalid sender address: {}", e);
@@ -240,7 +243,7 @@ async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest)
 
     // Parse recipient address if present
     let recipient = if let Some(ref recipient_str) = tx_data.recipient {
-        match Address::from_str(recipient_str) {
+        match Address::from_hex(recipient_str) {
             Ok(addr) => Some(addr),
             Err(e) => {
                 error!("Invalid recipient address: {}", e);
@@ -317,6 +320,249 @@ async fn handle_submit_transaction(state: &RpcServerState, request: &RpcRequest)
                 id: request.id,
             }
         }
+    }
+}
+
+/// Handle publish module request
+async fn handle_publish_module(state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
+    use kanari_move_runtime::{SignedTransaction, Transaction};
+    use kanari_types::address::Address;
+
+    let module_data: PublishModuleRequest = match serde_json::from_value(request.params.clone()) {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Failed to parse module data: {}", e);
+            return RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::invalid_params(format!(
+                    "Invalid module data: {}",
+                    e
+                ))),
+                id: request.id,
+            };
+        }
+    };
+
+    // Validate sender address
+    if let Err(e) = Address::from_hex(&module_data.sender) {
+        error!("Invalid sender address: {}", e);
+        return RpcResponse {
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(RpcError::invalid_params(format!(
+                "Invalid sender address: {}",
+                e
+            ))),
+            id: request.id,
+        };
+    }
+
+    // Create transaction
+    let transaction = Transaction::PublishModule {
+        sender: module_data.sender.clone(),
+        module_bytes: module_data.module_bytes,
+        module_name: module_data.module_name,
+        gas_limit: module_data.gas_limit,
+        gas_price: module_data.gas_price,
+    };
+
+    let mut signed_tx = SignedTransaction::new(transaction);
+    if let Some(sig) = module_data.signature {
+        signed_tx.signature = Some(sig);
+    }
+
+    // Submit to blockchain
+    match state.engine.submit_transaction(signed_tx) {
+        Ok(tx_hash) => {
+            let tx_hash_hex = hex::encode(&tx_hash);
+            info!("Module published successfully: {}", tx_hash_hex);
+            let result = serde_json::json!({
+                "hash": tx_hash_hex,
+                "status": "pending"
+            });
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: Some(result),
+                error: None,
+                id: request.id,
+            }
+        }
+        Err(e) => {
+            error!("Failed to publish module: {}", e);
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::internal_error(format!(
+                    "Module publication failed: {}",
+                    e
+                ))),
+                id: request.id,
+            }
+        }
+    }
+}
+
+/// Handle call function request
+async fn handle_call_function(state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
+    use kanari_move_runtime::{SignedTransaction, Transaction};
+    use kanari_types::address::Address;
+
+    let call_data: CallFunctionRequest = match serde_json::from_value(request.params.clone()) {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Failed to parse call data: {}", e);
+            return RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::invalid_params(format!(
+                    "Invalid call data: {}",
+                    e
+                ))),
+                id: request.id,
+            };
+        }
+    };
+
+    // Validate addresses
+    if let Err(e) = Address::from_hex(&call_data.sender) {
+        error!("Invalid sender address: {}", e);
+        return RpcResponse {
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(RpcError::invalid_params(format!(
+                "Invalid sender address: {}",
+                e
+            ))),
+            id: request.id,
+        };
+    }
+
+    if let Err(e) = Address::from_hex(&call_data.package) {
+        error!("Invalid package address: {}", e);
+        return RpcResponse {
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(RpcError::invalid_params(format!(
+                "Invalid package address: {}",
+                e
+            ))),
+            id: request.id,
+        };
+    }
+
+    // Create transaction
+    let transaction = Transaction::ExecuteFunction {
+        sender: call_data.sender.clone(),
+        module: call_data.package.clone(),
+        function: call_data.function,
+        type_args: call_data.type_args,
+        args: call_data.args,
+        gas_limit: call_data.gas_limit,
+        gas_price: call_data.gas_price,
+    };
+
+    let mut signed_tx = SignedTransaction::new(transaction);
+    if let Some(sig) = call_data.signature {
+        signed_tx.signature = Some(sig);
+    }
+
+    // Submit to blockchain
+    match state.engine.submit_transaction(signed_tx) {
+        Ok(tx_hash) => {
+            let tx_hash_hex = hex::encode(&tx_hash);
+            info!("Function called successfully: {}", tx_hash_hex);
+            let result = serde_json::json!({
+                "hash": tx_hash_hex,
+                "status": "pending"
+            });
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: Some(result),
+                error: None,
+                id: request.id,
+            }
+        }
+        Err(e) => {
+            error!("Failed to call function: {}", e);
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::internal_error(format!(
+                    "Function call failed: {}",
+                    e
+                ))),
+                id: request.id,
+            }
+        }
+    }
+}
+
+/// Handle get contract request
+async fn handle_get_contract(state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
+    #[derive(serde::Deserialize)]
+    struct GetContractParams {
+        address: String,
+        module: String,
+    }
+
+    let params: GetContractParams = match serde_json::from_value(request.params.clone()) {
+        Ok(p) => p,
+        Err(e) => {
+            return RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(RpcError::invalid_params(e.to_string())),
+                id: request.id,
+            };
+        }
+    };
+
+    // Get contract info from engine
+    match state.engine.get_contract(&params.address, &params.module) {
+        Some(info) => {
+            let contract_info = ContractInfo {
+                address: info.address.clone(),
+                name: info.metadata.name,
+                version: info.metadata.version,
+                author: info.metadata.author,
+                functions: info.abi.functions.iter().map(|f| f.name.clone()).collect(),
+            };
+            RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                result: Some(serde_json::to_value(contract_info).unwrap()),
+                error: None,
+                id: request.id,
+            }
+        }
+        None => RpcResponse {
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(RpcError::internal_error("Contract not found")),
+            id: request.id,
+        },
+    }
+}
+
+/// Handle list contracts request
+async fn handle_list_contracts(state: &RpcServerState, request: &RpcRequest) -> RpcResponse {
+    let contracts = state.engine.list_all_contracts();
+    let contract_list: Vec<ContractInfo> = contracts
+        .iter()
+        .map(|info| ContractInfo {
+            address: info.address.clone(),
+            name: info.metadata.name.clone(),
+            version: info.metadata.version.clone(),
+            author: info.metadata.author.clone(),
+            functions: info.abi.functions.iter().map(|f| f.name.clone()).collect(),
+        })
+        .collect();
+
+    RpcResponse {
+        jsonrpc: "2.0".to_string(),
+        result: Some(serde_json::to_value(contract_list).unwrap()),
+        error: None,
+        id: request.id,
     }
 }
 

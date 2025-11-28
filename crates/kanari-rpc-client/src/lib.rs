@@ -123,6 +123,62 @@ impl RpcClient {
 
         Ok(status)
     }
+
+    /// Publish Move module
+    pub async fn publish_module(&self, request: PublishModuleRequest) -> Result<TransactionStatus> {
+        let response = self
+            .request(methods::PUBLISH_MODULE, serde_json::to_value(request)?)
+            .await?;
+
+        let result = response.result.context("No result in response")?;
+
+        let status = TransactionStatus {
+            hash: result["hash"].as_str().unwrap_or("").to_string(),
+            status: result["status"].as_str().unwrap_or("unknown").to_string(),
+            block_height: None,
+            gas_used: None,
+        };
+
+        Ok(status)
+    }
+
+    /// Call Move function
+    pub async fn call_function(&self, request: CallFunctionRequest) -> Result<TransactionStatus> {
+        let response = self
+            .request(methods::CALL_FUNCTION, serde_json::to_value(request)?)
+            .await?;
+
+        let result = response.result.context("No result in response")?;
+
+        let status = TransactionStatus {
+            hash: result["hash"].as_str().unwrap_or("").to_string(),
+            status: result["status"].as_str().unwrap_or("unknown").to_string(),
+            block_height: None,
+            gas_used: None,
+        };
+
+        Ok(status)
+    }
+
+    /// Get contract information
+    pub async fn get_contract(&self, address: &str) -> Result<ContractInfo> {
+        let response = self
+            .request(methods::GET_CONTRACT, serde_json::json!(address))
+            .await?;
+
+        let result = response.result.context("No result in response")?;
+        serde_json::from_value(result).context("Failed to parse contract info")
+    }
+
+    /// List all contracts
+    pub async fn list_contracts(&self) -> Result<Vec<ContractInfo>> {
+        let response = self
+            .request(methods::LIST_CONTRACTS, serde_json::json!(null))
+            .await?;
+
+        let result = response.result.context("No result in response")?;
+        serde_json::from_value(result).context("Failed to parse contracts list")
+    }
 }
 
 #[cfg(test)]

@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::reroot_path;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use clap::*;
+use kanari_crypto::wallet::load_wallet;
+use kanari_types::address::Address;
 use move_package::BuildConfig;
 use std::path::PathBuf;
 
@@ -23,20 +25,20 @@ pub struct Publish {
     #[clap(long = "gas-price", default_value = "1000")]
     pub gas_price: u64,
 
-    /// Account address publishing the module (e.g., 0x1)
+    /// Account address publishing the module (from wallet)
     #[clap(long = "sender")]
     pub sender: String,
 
-    /// Private key for signing (hex string)
-    #[clap(long = "private-key")]
-    pub private_key: Option<String>,
+    /// Wallet password (required for signing)
+    #[clap(long = "password")]
+    pub password: Option<String>,
 
-    /// Skip signature (for testing)
+    /// Skip signature (for testing only)
     #[clap(long = "skip-signature")]
     pub skip_signature: bool,
 
     /// RPC endpoint
-    #[clap(long = "rpc", default_value = "http://localhost:9944")]
+    #[clap(long = "rpc", default_value = "http://127.0.0.1:3000")]
     pub rpc_endpoint: String,
 }
 
@@ -44,8 +46,12 @@ impl Publish {
     pub fn execute(self, path: Option<PathBuf>, config: BuildConfig) -> Result<()> {
         let rerooted_path = reroot_path(path.or(self.package_path.clone()))?;
 
+        // Validate sender address
+        let _sender_addr = Address::from_hex(&self.sender)
+            .with_context(|| format!("Invalid sender address: {}", self.sender))?;
+
         println!("📦 Building Move package...");
-        
+
         // Build the package
         let compiled_package = config.compile_package(&rerooted_path, &mut std::io::stderr())?;
 
@@ -54,13 +60,35 @@ impl Publish {
 
         // Get compiled modules
         let modules: Vec<_> = compiled_package.all_modules().collect();
-        
+
         if modules.is_empty() {
             bail!("No modules found in package");
         }
 
+        // Load wallet if not skipping signature
+        let wallet = if !self.skip_signature {
+            let password = self
+                .password
+                .as_ref()
+                .context("Password required for signing (use --password or --skip-signature)")?;
+
+            let w = load_wallet(&self.sender, password).context(
+                "Failed to load wallet. Make sure the wallet exists and password is correct",
+            )?;
+
+            println!(
+                "🔐 Wallet loaded: {} (curve: {})",
+                self.sender, w.curve_type
+            );
+            Some(w)
+        } else {
+            println!("⚠️  Test mode: Skipping signature");
+            None
+        };
+
         println!("\n📤 Publishing modules to blockchain...");
-        
+        println!("   RPC: {}", self.rpc_endpoint);
+
         for module_unit in &modules {
             let module = &module_unit.unit.module;
             let module_name = module.self_id().name().to_string();
@@ -77,126 +105,41 @@ impl Publish {
 
             // Estimate gas
             let estimated_gas = 60_000 + (module_bytecode.len() as u64 * 10);
+            let estimated_cost = estimated_gas * self.gas_price;
             println!("     Estimated Gas: {} units", estimated_gas);
-            
+            println!(
+                "     Estimated Cost: {} Mist ({:.6} KANARI)",
+                estimated_cost,
+                estimated_cost as f64 / 1_000_000_000.0
+            );
+
             if estimated_gas > self.gas_limit {
-                eprintln!("     ⚠️  Warning: Estimated gas ({}) exceeds limit ({})", 
-                    estimated_gas, self.gas_limit);
+                eprintln!(
+                    "     ⚠️  Warning: Estimated gas ({}) exceeds limit ({})",
+                    estimated_gas, self.gas_limit
+                );
             }
 
-            // Create transaction (in real implementation, this would call the RPC)
-            println!("     Creating publish transaction...");
-            
-            if self.skip_signature {
-                println!("     ⚠️  Skipping signature (test mode)");
-            } else if self.private_key.is_none() {
-                bail!("Private key required (use --private-key or --skip-signature)");
-            } else {
-                println!("     🔑 Signing transaction...");
+            // Create and sign transaction
+            if let Some(ref wallet) = wallet {
+                println!(
+                    "     🔑 Signing transaction with {} key...",
+                    wallet.curve_type
+                );
+
+                // In production, this would:
+                // 1. Create proper transaction with module bytecode
+                // 2. Sign with wallet private key
+                // 3. Broadcast to RPC endpoint
+                // 4. Wait for confirmation
+
+                println!("     ⚠️  Not yet implemented: Blockchain submission");
             }
-
-            // In production, this would:
-            // 1. Create ContractDeployment
-            // 2. Sign with private key
-            // 3. Submit to RPC endpoint
-            // 4. Wait for confirmation
-            
-            println!("     ✅ Transaction created");
-            println!("     RPC: {}", self.rpc_endpoint);
         }
 
-        println!("\n✅ All modules published successfully!");
-        println!("\n💡 Next steps:");
-        println!("   • Use 'kanari move call' to execute functions");
-        println!("   • Check transaction status on blockchain explorer");
-        
-        Ok(())
-    }
-
-    /// Execute with integration to blockchain engine
-    #[cfg(feature = "blockchain")]
-    pub fn execute_with_engine(
-        self,
-        path: Option<PathBuf>,
-        config: BuildConfig,
-    ) -> Result<()> {
-        use kanari_move_runtime::{BlockchainEngine, ContractDeployment, ContractMetadata};
-        use kanari_crypto::keys::CurveType;
-
-        let rerooted_path = reroot_path(path.or(self.package_path.clone()))?;
-
-        println!("📦 Building Move package...");
-        let compiled_package = config.compile_package(&rerooted_path, &mut std::io::stderr())?;
-        
-        // Initialize blockchain engine
-        let engine = BlockchainEngine::new()?;
-
-        let modules: Vec<_> = compiled_package.all_modules().collect();
-        
-        for module_unit in &modules {
-            let module = &module_unit.unit.module;
-            let module_name = module.self_id().name().to_string();
-            
-            let mut module_bytecode = vec![];
-            module.serialize(&mut module_bytecode)?;
-
-            // Prepare metadata
-            let metadata = ContractMetadata::new(
-                module_name.clone(),
-                "1.0.0".to_string(),
-                self.sender.clone(),
-            )
-            .with_description(format!("Move module {}", module_name));
-
-            // Create deployment
-            let deployment = ContractDeployment::new(
-                module_bytecode,
-                module_name.clone(),
-                &self.sender,
-                metadata,
-            )?
-            .with_gas_limit(self.gas_limit)
-            .with_gas_price(self.gas_price);
-
-            // Deploy
-            let tx_hash = if self.skip_signature {
-                // For testing without signature
-                use kanari_move_runtime::{SignedTransaction, Transaction};
-                
-                let tx = Transaction::PublishModule {
-                    sender: self.sender.clone(),
-                    module_bytes: deployment.bytecode.clone(),
-                    module_name: module_name.clone(),
-                    gas_limit: self.gas_limit,
-                    gas_price: self.gas_price,
-                };
-                
-                let signed_tx = SignedTransaction::new(tx);
-                engine.submit_transaction(signed_tx)?
-            } else {
-                // With signature
-                let private_key = self.private_key.as_ref()
-                    .context("Private key required")?;
-                
-                use kanari_move_runtime::{SignedTransaction, Transaction};
-                
-                let tx = Transaction::PublishModule {
-                    sender: self.sender.clone(),
-                    module_bytes: deployment.bytecode.clone(),
-                    module_name: module_name.clone(),
-                    gas_limit: self.gas_limit,
-                    gas_price: self.gas_price,
-                };
-                
-                let mut signed_tx = SignedTransaction::new(tx);
-                signed_tx.sign(private_key, CurveType::Ed25519)?;
-                
-                engine.submit_transaction(signed_tx)?
-            };
-
-            println!("✅ Module '{}' published", module_name);
-            println!("   TX Hash: {}", hex::encode(&tx_hash[..8]));
-        }
+        println!("\n✅ Package build and validation complete!");
+        println!("⚠️  Note: Blockchain submission not yet implemented");
+        println!("   Use `execute_with_engine()` method for direct engine access");
 
         Ok(())
     }

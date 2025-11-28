@@ -12,22 +12,22 @@ use std::collections::HashMap;
 pub struct ContractInfo {
     /// Contract address (module publisher)
     pub address: String,
-    
+
     /// Module name
     pub module_name: String,
-    
+
     /// Module bytecode
     pub bytecode: Vec<u8>,
-    
+
     /// Deployment transaction hash
     pub deployment_tx: Vec<u8>,
-    
+
     /// Block height when deployed
     pub deployed_at: u64,
-    
+
     /// ABI (function signatures)
     pub abi: ContractABI,
-    
+
     /// Contract metadata
     pub metadata: ContractMetadata,
 }
@@ -37,7 +37,7 @@ pub struct ContractInfo {
 pub struct ContractABI {
     /// Public functions
     pub functions: Vec<FunctionSignature>,
-    
+
     /// Public structs
     pub structs: Vec<StructSignature>,
 }
@@ -77,19 +77,19 @@ impl Default for ContractABI {
 pub struct FunctionSignature {
     /// Function name
     pub name: String,
-    
+
     /// Is entry function (can be called externally)
     pub is_entry: bool,
-    
+
     /// Type parameters
     pub type_params: Vec<String>,
-    
+
     /// Parameters
     pub parameters: Vec<ParameterInfo>,
-    
+
     /// Return types
     pub returns: Vec<String>,
-    
+
     /// Function documentation
     pub doc: Option<String>,
 }
@@ -121,22 +121,22 @@ pub struct FieldInfo {
 pub struct ContractMetadata {
     /// Contract name (human-readable)
     pub name: String,
-    
+
     /// Contract version
     pub version: String,
-    
+
     /// Author/Publisher
     pub author: String,
-    
+
     /// Description
     pub description: String,
-    
+
     /// Source code URL (optional)
     pub source_url: Option<String>,
-    
+
     /// License
     pub license: Option<String>,
-    
+
     /// Tags/Categories
     pub tags: Vec<String>,
 }
@@ -180,7 +180,7 @@ impl ContractMetadata {
 pub struct ContractRegistry {
     /// Map: (address, module_name) -> ContractInfo
     contracts: HashMap<(String, String), ContractInfo>,
-    
+
     /// Map: address -> list of module names
     address_modules: HashMap<String, Vec<String>>,
 }
@@ -196,20 +196,21 @@ impl ContractRegistry {
     /// Register a deployed contract
     pub fn register(&mut self, contract: ContractInfo) {
         let key = (contract.address.clone(), contract.module_name.clone());
-        
+
         // Add to address_modules index
         self.address_modules
             .entry(contract.address.clone())
             .or_insert_with(Vec::new)
             .push(contract.module_name.clone());
-        
+
         // Add to contracts
         self.contracts.insert(key, contract);
     }
 
     /// Get contract info
     pub fn get_contract(&self, address: &str, module_name: &str) -> Option<&ContractInfo> {
-        self.contracts.get(&(address.to_string(), module_name.to_string()))
+        self.contracts
+            .get(&(address.to_string(), module_name.to_string()))
     }
 
     /// List all contracts by address
@@ -253,19 +254,19 @@ impl Default for ContractRegistry {
 pub struct ContractCall {
     /// Target module
     pub module_id: ModuleId,
-    
+
     /// Function to call
     pub function: String,
-    
+
     /// Type arguments
     pub type_args: Vec<TypeTag>,
-    
+
     /// Function arguments (BCS-encoded)
     pub args: Vec<Vec<u8>>,
-    
+
     /// Sender address
     pub sender: AccountAddress,
-    
+
     /// Gas configuration
     pub gas_limit: u64,
     pub gas_price: u64,
@@ -273,12 +274,7 @@ pub struct ContractCall {
 
 impl ContractCall {
     /// Create a new contract call
-    pub fn new(
-        address: &str,
-        module: &str,
-        function: &str,
-        sender: &str,
-    ) -> Result<Self> {
+    pub fn new(address: &str, module: &str, function: &str, sender: &str) -> Result<Self> {
         let module_addr = AccountAddress::from_hex_literal(address)?;
         let module_name = Identifier::new(module)?;
         let module_id = ModuleId::new(module_addr, module_name);
@@ -334,16 +330,16 @@ impl ContractCall {
 pub struct ContractDeployment {
     /// Module bytecode
     pub bytecode: Vec<u8>,
-    
+
     /// Module name
     pub module_name: String,
-    
+
     /// Publisher address
     pub publisher: AccountAddress,
-    
+
     /// Contract metadata
     pub metadata: ContractMetadata,
-    
+
     /// Gas configuration
     pub gas_limit: u64,
     pub gas_price: u64,
@@ -394,7 +390,7 @@ mod tests {
     #[test]
     fn test_contract_abi() {
         let mut abi = ContractABI::new();
-        
+
         let func = FunctionSignature {
             name: "transfer".to_string(),
             is_entry: true,
@@ -414,7 +410,7 @@ mod tests {
         };
 
         abi.add_function(func);
-        
+
         assert_eq!(abi.functions.len(), 1);
         assert!(abi.get_function("transfer").is_some());
         assert_eq!(abi.list_functions(), vec!["transfer"]);
@@ -423,7 +419,7 @@ mod tests {
     #[test]
     fn test_contract_registry() {
         let mut registry = ContractRegistry::new();
-        
+
         let contract = ContractInfo {
             address: "0x1".to_string(),
             module_name: "coin".to_string(),
@@ -439,7 +435,7 @@ mod tests {
         };
 
         registry.register(contract);
-        
+
         assert_eq!(registry.count(), 1);
         assert!(registry.get_contract("0x1", "coin").is_some());
         assert_eq!(registry.get_contracts_by_address("0x1").len(), 1);
@@ -473,7 +469,7 @@ mod tests {
         assert_eq!(call.gas_limit, 200_000);
         assert_eq!(call.gas_price, 2000);
         assert_eq!(call.module_name(), "coin");
-        
+
         Ok(())
     }
 
@@ -485,18 +481,14 @@ mod tests {
             "0x1".to_string(),
         );
 
-        let deployment = ContractDeployment::new(
-            vec![1, 2, 3, 4],
-            "test_module".to_string(),
-            "0x1",
-            metadata,
-        )?
-        .with_gas_limit(1_000_000);
+        let deployment =
+            ContractDeployment::new(vec![1, 2, 3, 4], "test_module".to_string(), "0x1", metadata)?
+                .with_gas_limit(1_000_000);
 
         assert_eq!(deployment.module_name, "test_module");
         assert_eq!(deployment.gas_limit, 1_000_000);
         assert_eq!(deployment.bytecode.len(), 4);
-        
+
         Ok(())
     }
 }

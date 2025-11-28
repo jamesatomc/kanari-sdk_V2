@@ -117,6 +117,41 @@ pub struct SignedTransactionData {
     pub signature: Option<Vec<u8>>,
 }
 
+/// Publish module request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishModuleRequest {
+    pub sender: String,
+    pub module_bytes: Vec<u8>,
+    pub module_name: String,
+    pub gas_limit: u64,
+    pub gas_price: u64,
+    pub signature: Option<Vec<u8>>,
+}
+
+/// Call function request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallFunctionRequest {
+    pub sender: String,
+    pub package: String,
+    pub module: String,
+    pub function: String,
+    pub type_args: Vec<String>,
+    pub args: Vec<Vec<u8>>,
+    pub gas_limit: u64,
+    pub gas_price: u64,
+    pub signature: Option<Vec<u8>>,
+}
+
+/// Contract info response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractInfo {
+    pub address: String,
+    pub name: String,
+    pub version: String,
+    pub author: String,
+    pub functions: Vec<String>,
+}
+
 /// RPC Methods
 pub mod methods {
     pub const GET_ACCOUNT: &str = "kanari_getAccount";
@@ -127,4 +162,10 @@ pub mod methods {
     pub const SUBMIT_TRANSACTION: &str = "kanari_submitTransaction";
     pub const GET_STATS: &str = "kanari_getStats";
     pub const ESTIMATE_GAS: &str = "kanari_estimateGas";
+
+    // Contract operations
+    pub const PUBLISH_MODULE: &str = "kanari_publishModule";
+    pub const CALL_FUNCTION: &str = "kanari_callFunction";
+    pub const GET_CONTRACT: &str = "kanari_getContract";
+    pub const LIST_CONTRACTS: &str = "kanari_listContracts";
 }

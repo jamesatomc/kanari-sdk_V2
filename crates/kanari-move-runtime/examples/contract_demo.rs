@@ -1,7 +1,5 @@
 use anyhow::Result;
-use kanari_move_runtime::{
-    BlockchainEngine, ContractCall, ContractDeployment, ContractMetadata,
-};
+use kanari_move_runtime::{BlockchainEngine, ContractCall, ContractDeployment, ContractMetadata};
 
 fn main() -> Result<()> {
     println!("=== Kanari Contract Upload & Interaction Demo ===\n");
@@ -26,18 +24,14 @@ fn main() -> Result<()> {
     let module_bytecode = vec![
         0xa1, 0x1c, 0xeb, 0x0b, // Move magic number
         0x07, // Version 7
-        // ... rest of compiled Move bytecode
+              // ... rest of compiled Move bytecode
     ];
 
     // Create deployment
-    let deployment = ContractDeployment::new(
-        module_bytecode,
-        "my_token".to_string(),
-        "0x1",
-        metadata,
-    )?
-    .with_gas_limit(1_000_000)
-    .with_gas_price(1500);
+    let deployment =
+        ContractDeployment::new(module_bytecode, "my_token".to_string(), "0x1", metadata)?
+            .with_gas_limit(1_000_000)
+            .with_gas_price(1500);
 
     println!("  📋 Contract Info:");
     println!("     Name: {}", deployment.metadata.name);
@@ -63,10 +57,10 @@ fn main() -> Result<()> {
 
     println!("📊 Step 2: Check Contract Registry");
     println!("─────────────────────────────────────────────");
-    
+
     let contract_count = engine.get_contract_count();
     println!("  Total Contracts Deployed: {}", contract_count);
-    
+
     if let Some(contract) = engine.get_contract("0x1", "my_token") {
         println!("  ✅ Found Contract:");
         println!("     Address: {}", contract.address);
@@ -81,16 +75,20 @@ fn main() -> Result<()> {
 
     // Create a contract call
     let call = ContractCall::new(
-        "0x1",           // Contract address
-        "my_token",      // Module name
-        "mint",          // Function name
-        "0x2",           // Caller address
+        "0x1",      // Contract address
+        "my_token", // Module name
+        "mint",     // Function name
+        "0x2",      // Caller address
     )?
     .with_gas_limit(200_000)
     .with_gas_price(1500);
 
     println!("  📋 Call Info:");
-    println!("     Contract: {}::{}", call.module_address(), call.module_name());
+    println!(
+        "     Contract: {}::{}",
+        call.module_address(),
+        call.module_name()
+    );
     println!("     Function: {}", call.function);
     println!("     Caller: 0x{}", hex::encode(call.sender.to_vec()));
     println!("     Gas Limit: {}", call.gas_limit);
@@ -116,7 +114,10 @@ fn main() -> Result<()> {
     let contracts = engine.list_contracts_by_address("0x1");
     println!("  Contracts by address 0x1: {}", contracts.len());
     for contract in &contracts {
-        println!("    • {} (v{})", contract.metadata.name, contract.metadata.version);
+        println!(
+            "    • {} (v{})",
+            contract.metadata.name, contract.metadata.version
+        );
     }
     println!();
 
@@ -124,7 +125,10 @@ fn main() -> Result<()> {
     let token_contracts = engine.search_contracts_by_tag("token");
     println!("  Contracts with tag 'token': {}", token_contracts.len());
     for contract in &token_contracts {
-        println!("    • {}: {}", contract.module_name, contract.metadata.description);
+        println!(
+            "    • {}: {}",
+            contract.module_name, contract.metadata.description
+        );
     }
     println!();
 
@@ -141,7 +145,7 @@ fn main() -> Result<()> {
 
     println!("📊 Step 5: Blockchain Stats");
     println!("─────────────────────────────────────────────");
-    
+
     let stats = engine.get_stats();
     println!("  Height: {}", stats.height);
     println!("  Total Blocks: {}", stats.total_blocks);

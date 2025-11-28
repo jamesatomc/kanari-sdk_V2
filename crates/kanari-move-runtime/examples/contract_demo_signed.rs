@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     println!("🔑 Generating Keypairs...");
     let publisher_keypair = generate_keypair(CurveType::Ed25519)?;
     let caller_keypair = generate_keypair(CurveType::Ed25519)?;
-    
+
     println!("  Publisher: {}", publisher_keypair.address);
     println!("  Caller: {}", caller_keypair.address);
     println!();
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
     let module_bytecode = vec![
         0xa1, 0x1c, 0xeb, 0x0b, // Move magic number
         0x07, // Version 7
-        // ... rest of compiled Move bytecode
+              // ... rest of compiled Move bytecode
     ];
 
     println!("  📋 Contract Info:");
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         Ok(tx_hash) => {
             println!("  ✅ Contract transaction submitted!");
             println!("     TX Hash: {}", hex::encode(&tx_hash[..8]));
-            
+
             // Manually register contract (since we're not producing blocks)
             let contract_info = kanari_move_runtime::ContractInfo {
                 address: publisher_keypair.address.clone(),
@@ -75,8 +75,12 @@ fn main() -> Result<()> {
                 abi: kanari_move_runtime::ContractABI::new(),
                 metadata: metadata.clone(),
             };
-            
-            engine.contract_registry.write().unwrap().register(contract_info);
+
+            engine
+                .contract_registry
+                .write()
+                .unwrap()
+                .register(contract_info);
             println!("     Registered in contract registry");
             println!();
         }
@@ -88,10 +92,10 @@ fn main() -> Result<()> {
 
     println!("📊 Step 2: Check Contract Registry");
     println!("─────────────────────────────────────────────");
-    
+
     let contract_count = engine.get_contract_count();
     println!("  Total Contracts Deployed: {}", contract_count);
-    
+
     if let Some(contract) = engine.get_contract(&publisher_keypair.address, "my_token") {
         println!("  ✅ Found Contract:");
         println!("     Address: {}", contract.address);
@@ -151,9 +155,16 @@ fn main() -> Result<()> {
 
     // List all contracts by address
     let contracts = engine.list_contracts_by_address(&publisher_keypair.address);
-    println!("  Contracts by address {}: {}", publisher_keypair.address, contracts.len());
+    println!(
+        "  Contracts by address {}: {}",
+        publisher_keypair.address,
+        contracts.len()
+    );
     for contract in &contracts {
-        println!("    • {} (v{})", contract.metadata.name, contract.metadata.version);
+        println!(
+            "    • {} (v{})",
+            contract.metadata.name, contract.metadata.version
+        );
         println!("      Description: {}", contract.metadata.description);
     }
     println!();
@@ -162,7 +173,10 @@ fn main() -> Result<()> {
     let token_contracts = engine.search_contracts_by_tag("token");
     println!("  Contracts with tag 'token': {}", token_contracts.len());
     for contract in &token_contracts {
-        println!("    • {}: {}", contract.module_name, contract.metadata.description);
+        println!(
+            "    • {}: {}",
+            contract.module_name, contract.metadata.description
+        );
     }
     println!();
 
@@ -180,7 +194,7 @@ fn main() -> Result<()> {
 
     println!("📊 Step 5: Blockchain Stats");
     println!("─────────────────────────────────────────────");
-    
+
     let stats = engine.get_stats();
     println!("  Height: {}", stats.height);
     println!("  Total Blocks: {}", stats.total_blocks);
@@ -190,16 +204,19 @@ fn main() -> Result<()> {
 
     println!("⛽ Step 6: Gas Estimation");
     println!("─────────────────────────────────────────────");
-    
+
     use kanari_move_runtime::GasOperation;
-    
+
     let deploy_gas = GasOperation::ContractDeployment {
         module_size: module_bytecode.len(),
         metadata_size: 200,
     };
-    println!("  Contract Deployment Gas: {} units", deploy_gas.gas_units());
+    println!(
+        "  Contract Deployment Gas: {} units",
+        deploy_gas.gas_units()
+    );
     println!("  Cost: {} Mist", deploy_gas.gas_units() * 1500);
-    
+
     let call_gas = GasOperation::ContractCall {
         function_name_len: 4, // "mint"
     };

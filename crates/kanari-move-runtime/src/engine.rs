@@ -430,7 +430,10 @@ impl BlockchainEngine {
             metadata: deployment.metadata,
         };
 
-        self.contract_registry.write().unwrap().register(contract_info);
+        self.contract_registry
+            .write()
+            .unwrap()
+            .register(contract_info);
 
         Ok(tx_hash)
     }
@@ -441,11 +444,7 @@ impl BlockchainEngine {
             sender: format!("0x{}", hex::encode(call.sender.to_vec())),
             module: call.module_address(),
             function: call.function.clone(),
-            type_args: call
-                .type_args
-                .iter()
-                .map(|t| format!("{}", t))
-                .collect(),
+            type_args: call.type_args.iter().map(|t| format!("{}", t)).collect(),
             args: call.args.clone(),
             gas_limit: call.gas_limit,
             gas_price: call.gas_price,

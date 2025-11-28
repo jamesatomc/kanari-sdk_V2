@@ -39,7 +39,10 @@ pub enum GasOperation {
     /// Call a contract function
     ContractCall { function_name_len: usize },
     /// Deploy a contract with metadata
-    ContractDeployment { module_size: usize, metadata_size: usize },
+    ContractDeployment {
+        module_size: usize,
+        metadata_size: usize,
+    },
     /// Query contract information
     ContractQuery,
     /// Create new account
@@ -65,7 +68,10 @@ impl GasOperation {
                 // Base cost for contract call + name length overhead
                 35_000 + (*function_name_len as u64 * 100)
             }
-            GasOperation::ContractDeployment { module_size, metadata_size } => {
+            GasOperation::ContractDeployment {
+                module_size,
+                metadata_size,
+            } => {
                 // Higher cost for full contract deployment with registry
                 60_000 + (*module_size as u64 * 10) + (*metadata_size as u64 * 5)
             }
@@ -285,7 +291,9 @@ mod tests {
         let publish = GasOperation::PublishModule { module_size: 1000 };
         assert_eq!(publish.gas_units(), 60_000); // 50_000 + 1000*10
 
-        let contract_call = GasOperation::ContractCall { function_name_len: 10 };
+        let contract_call = GasOperation::ContractCall {
+            function_name_len: 10,
+        };
         assert_eq!(contract_call.gas_units(), 36_000); // 35_000 + 10*100
 
         let deployment = GasOperation::ContractDeployment {
