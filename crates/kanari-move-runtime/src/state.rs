@@ -1,4 +1,4 @@
-use crate::changeset::ChangeSet;
+use crate::changeset::{ChangeSet, Event};
 use anyhow::Result;
 use kanari_crypto::hash_data_blake3;
 use kanari_types::address::Address as KanariAddress;
@@ -44,6 +44,7 @@ impl Account {
 pub struct StateManager {
     pub accounts: HashMap<AccountAddress, Account>,
     pub total_supply: u64,
+    pub events: Vec<Event>,
 }
 
 impl StateManager {
@@ -74,6 +75,7 @@ impl StateManager {
         Self {
             accounts,
             total_supply: TOTAL_SUPPLY_MIST,
+            events: Vec::new(),
         }
     }
 
@@ -158,6 +160,11 @@ impl StateManager {
             }
         }
 
+        // Persist events emitted by Move VM into state event store
+        if !changeset.events.is_empty() {
+            self.events.extend(changeset.events.clone());
+        }
+
         Ok(())
     }
 
@@ -185,59 +192,7 @@ impl StateManager {
         Ok(())
     }
 
-    /// Legacy direct transfer - DEPRECATED, use apply_changeset instead
-    /// Kept for backward compatibility only
-    #[deprecated(note = "Use apply_changeset with Move VM execution instead")]
-    pub fn transfer(&mut self, from: &str, to: &str, amount: u64) -> Result<()> {
-        let from_addr = AccountAddress::from_hex_literal(from)?;
-        let to_addr = AccountAddress::from_hex_literal(to)?;
-
-        let sender_balance = self
-            .accounts
-            .get(&from_addr)
-            .map(|acc| acc.balance)
-            .ok_or_else(|| anyhow::anyhow!("Sender account not found"))?;
-
-        if sender_balance < amount {
-            anyhow::bail!("Insufficient balance");
-        }
-
-        if let Some(sender) = self.accounts.get_mut(&from_addr) {
-            sender.balance -= amount;
-            sender.increment_sequence();
-        }
-
-        let receiver = self.get_or_create_account(to_addr);
-        receiver.balance += amount;
-
-        Ok(())
-    }
-
-    /// Legacy mint - DEPRECATED
-    #[deprecated(note = "Use apply_changeset with Move VM execution instead")]
-    pub fn mint(&mut self, to: &str, amount: u64) -> Result<()> {
-        let to_addr = AccountAddress::from_hex_literal(to)?;
-        let account = self.get_or_create_account(to_addr);
-        account.balance += amount;
-        Ok(())
-    }
-
-    /// Legacy burn - DEPRECATED
-    #[deprecated(note = "Use apply_changeset with Move VM execution instead")]
-    pub fn burn(&mut self, from: &str, amount: u64) -> Result<()> {
-        let from_addr = AccountAddress::from_hex_literal(from)?;
-        let account = self
-            .accounts
-            .get_mut(&from_addr)
-            .ok_or_else(|| anyhow::anyhow!("Account not found"))?;
-
-        if account.balance < amount {
-            anyhow::bail!("Insufficient balance");
-        }
-
-        account.balance -= amount;
-        Ok(())
-    }
+    // Deprecated direct mutation helpers removed. Use `ChangeSet` + `apply_changeset()` instead.
 
     pub fn get_balance(&self, address: &str) -> u64 {
         if let Ok(addr) = AccountAddress::from_hex_literal(address) {
@@ -256,15 +211,13 @@ impl StateManager {
         hash_data_blake3(&serialized)
     }
 
-    /// Collect gas fees - DEPRECATED, should be part of ChangeSet
-    /// Gas collection should be included in the ChangeSet from Move VM execution
-    #[deprecated(note = "Gas fees should be included in ChangeSet, not applied separately")]
-    pub fn collect_gas(&mut self, gas_amount: u64) -> Result<()> {
-        let dao_addr = AccountAddress::from_hex_literal(KanariAddress::DAO_ADDRESS)?;
-        let dao = self.get_or_create_account(dao_addr);
-        dao.balance += gas_amount;
-        Ok(())
+    /// Drain and return all accumulated events from the state event store.
+    /// This moves events out so callers can process them without cloning.
+    pub fn drain_events(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.events)
     }
+
+    // Gas collection is handled via ChangeSet; no separate `collect_gas` method on StateManager.
 }
 
 impl Default for StateManager {
@@ -341,11 +294,19 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn test_legacy_transfer() {
+    fn test_legacy_transfer_equivalent() {
+        // Ensure legacy behavior (mint + transfer) can be represented via ChangeSet + apply_changeset
         let mut state = StateManager::new();
-        state.mint("0x1", 1000).unwrap();
-        state.transfer("0x1", "0x2", 500).unwrap();
+
+        // Mint 1000 to 0x1 using ChangeSet
+        let from = AccountAddress::from_hex_literal("0x1").unwrap();
+        let to = AccountAddress::from_hex_literal("0x2").unwrap();
+
+        let mut cs = ChangeSet::new();
+        cs.mint(from, 1000);
+        cs.transfer(from, to, 500);
+
+        state.apply_changeset(&cs).unwrap();
 
         assert_eq!(state.get_balance("0x1"), 500);
         assert_eq!(state.get_balance("0x2"), 500);

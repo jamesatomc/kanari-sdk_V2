@@ -149,6 +149,18 @@ async fn handle_get_block(state: &RpcServerState, request: &RpcRequest) -> RpcRe
 
     match state.engine.get_block(height) {
         Some(block) => {
+            // Map runtime events to RPC events
+            let rpc_events: Vec<RpcEvent> = block
+                .events
+                .into_iter()
+                .map(|e| RpcEvent {
+                    key: e.key,
+                    sequence_number: e.sequence_number,
+                    type_tag: e.type_tag,
+                    event_data: e.event_data,
+                })
+                .collect();
+
             let block_info = BlockInfo {
                 height: block.height,
                 timestamp: block.timestamp,
@@ -156,6 +168,7 @@ async fn handle_get_block(state: &RpcServerState, request: &RpcRequest) -> RpcRe
                 prev_hash: block.prev_hash,
                 tx_count: block.tx_count,
                 state_root: hex::encode(&block.hash), // Use block hash as state root placeholder
+                events: rpc_events,
             };
             RpcResponse {
                 jsonrpc: "2.0".to_string(),

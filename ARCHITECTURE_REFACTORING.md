@@ -283,9 +283,9 @@ pub struct ChangeSet {
 - [x] Update `BlockchainEngine` to use new types
 - [x] Fix all type mismatches
 - [x] Add unit tests for new patterns
-- [ ] Remove deprecated methods (future)
 - [ ] Full Move VM integration (future)
-- [ ] Event system integration (future)
+- [x] Event system integration — Implemented (see runtime + RPC)
+- [x] Remove deprecated methods — Implemented (removed from StateManager; tests updated)
 
 ## 🎓 Key Takeaways
 

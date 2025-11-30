@@ -8,6 +8,7 @@ pub mod move_vm_state;
 pub mod state;
 
 pub use blockchain::{Block, BlockHeader, Blockchain, SignedTransaction, Transaction};
+pub use changeset::Event;
 pub use changeset::{AccountChange, ChangeSet};
 pub use contract::{
     ContractABI, ContractCall, ContractDeployment, ContractInfo, ContractMetadata,

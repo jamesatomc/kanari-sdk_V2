@@ -77,6 +77,16 @@ pub struct BlockInfo {
     pub prev_hash: String,
     pub tx_count: usize,
     pub state_root: String,
+    pub events: Vec<RpcEvent>,
+}
+
+/// Event emitted by Move runtime (RPC representation)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcEvent {
+    pub key: Vec<u8>,
+    pub sequence_number: u64,
+    pub type_tag: String,
+    pub event_data: Vec<u8>,
 }
 
 /// Transaction status

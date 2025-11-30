@@ -15,6 +15,21 @@ pub struct MoveVMState {
 impl MoveVMState {
     /// Open default DB at `~/.kari/kanari-db/move_vm_db`.
     pub fn open_default() -> Result<Self> {
+        // Allow overriding the DB directory via env var for tests or custom setups.
+        if let Ok(dir) = std::env::var("KANARI_MOVE_VM_DB") {
+            let mut path = PathBuf::from(dir);
+            std::fs::create_dir_all(&path).context("Failed to create MoveVMState DB directory")?;
+            // Use given path directly (can be a file path or a directory). If it's a directory,
+            // use a default DB name inside it.
+            if path.is_dir() {
+                path.push("move_vm_db");
+            }
+            let mut opts = Options::default();
+            opts.create_if_missing(true);
+            let db = DB::open(&opts, path).context("Failed to open RocksDB for MoveVMState")?;
+            return Ok(MoveVMState { db });
+        }
+
         let mut path = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         path.push(".kari");
         path.push("kanari-db");

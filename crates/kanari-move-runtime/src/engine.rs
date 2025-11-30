@@ -1,5 +1,5 @@
 use crate::blockchain::{Block, Blockchain, SignedTransaction, Transaction};
-use crate::changeset::ChangeSet;
+use crate::changeset::{ChangeSet, Event};
 use crate::contract::{ContractCall, ContractDeployment, ContractInfo, ContractRegistry};
 use crate::gas::{GasMeter, GasOperation};
 use crate::move_runtime::MoveRuntime;
@@ -400,22 +400,25 @@ impl BlockchainEngine {
             }
         }
 
-        // Apply ALL ChangeSets atomically (both successful and failed)
-        {
+        // Apply ALL ChangeSets atomically (both successful and failed) and collect events.
+        let block_events: Vec<Event> = {
             let mut state = self.state.write().unwrap();
             for changeset in &all_changesets {
                 state
                     .apply_changeset(changeset)
                     .context("Failed to apply changeset to state")?;
             }
-        }
+
+            // Drain events accumulated in state into block-level events
+            state.drain_events()
+        };
 
         // Create new block
         let mut chain = self.blockchain.write().unwrap();
         let prev_hash = chain.latest_block().hash();
         let height = chain.height() + 1;
 
-        let block = Block::new(height, prev_hash, transactions);
+        let block = Block::new(height, prev_hash, transactions, block_events.clone());
         let block_hash = block.hash();
 
         chain.add_block(block)?;
@@ -426,6 +429,7 @@ impl BlockchainEngine {
             tx_count,
             executed,
             failed,
+            events: block_events,
         })
     }
 
@@ -564,6 +568,7 @@ impl BlockchainEngine {
             hash: hex::encode(&block.hash()),
             prev_hash: hex::encode(&block.header.prev_hash),
             tx_count: block.transactions.len(),
+            events: block.events.clone(),
         })
     }
 }
@@ -593,6 +598,7 @@ pub struct BlockData {
     pub hash: String,
     pub prev_hash: String,
     pub tx_count: usize,
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -602,14 +608,56 @@ pub struct BlockInfo {
     pub tx_count: usize,
     pub executed: usize,
     pub failed: usize,
+    pub events: Vec<Event>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn set_unique_move_vm_db_env() {
+        // Create a unique temp directory using a small loop that attempts to create a directory
+        // This avoids races: the first create_dir that succeeds wins and the path is unique.
+        let base = std::env::temp_dir();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let pid = std::process::id();
+
+        let mut created = false;
+        for i in 0..1000u32 {
+            let mut candidate = base.clone();
+            candidate.push(format!("kanari_move_vm_db_{}_{}_{}", ts, pid, i));
+            match std::fs::create_dir(&candidate) {
+                Ok(_) => {
+                    std::env::set_var(
+                        "KANARI_MOVE_VM_DB",
+                        candidate.to_string_lossy().into_owned(),
+                    );
+                    created = true;
+                    break;
+                }
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::AlreadyExists {
+                        continue;
+                    } else {
+                        // If another IO error happened, panic the test so we notice
+                        panic!("Failed to create temp dir for Move VM DB: {}", e);
+                    }
+                }
+            }
+        }
+
+        if !created {
+            panic!("Unable to create unique temp dir for Move VM DB after many attempts");
+        }
+    }
+
     #[test]
     fn test_engine_creation() {
+        set_unique_move_vm_db_env();
+
         let engine = BlockchainEngine::new().unwrap();
         let stats = engine.get_stats();
         assert_eq!(stats.height, 0);
@@ -619,6 +667,9 @@ mod tests {
     #[test]
     fn test_submit_transaction() {
         use kanari_crypto::keys::{generate_keypair, CurveType};
+
+        // Ensure runtime DB is isolated per-test
+        set_unique_move_vm_db_env();
 
         let engine = BlockchainEngine::new().unwrap();
 
@@ -636,5 +687,52 @@ mod tests {
         engine.submit_transaction(signed_tx).unwrap();
         let stats = engine.get_stats();
         assert_eq!(stats.pending_transactions, 1);
+    }
+
+    #[test]
+    fn test_event_persistence_and_block_inclusion() {
+        use crate::blockchain::Block;
+        use crate::changeset::Event;
+
+        // Use isolated RocksDB path for this test to avoid conflicts
+        set_unique_move_vm_db_env();
+
+        let engine = BlockchainEngine::new().unwrap();
+
+        // Prepare a ChangeSet with one event and apply it to state
+        let mut cs = ChangeSet::new();
+        let addr =
+            move_core_types::account_address::AccountAddress::from_hex_literal("0x1").unwrap();
+        cs.mint(addr, 1000);
+
+        let event = Event {
+            key: vec![1, 2, 3],
+            sequence_number: 1,
+            type_tag: "kanari::TransferEvent".to_string(),
+            event_data: vec![9, 9, 9],
+        };
+
+        cs.add_event(event.clone());
+
+        // Apply to state
+        {
+            let mut state = engine.state.write().unwrap();
+            state.apply_changeset(&cs).unwrap();
+            // Drain events and create a block that contains them
+            let drained = state.drain_events();
+
+            // Build block and append to chain
+            let mut chain = engine.blockchain.write().unwrap();
+            let prev_hash = chain.latest_block().hash();
+            let height = chain.height() + 1;
+            let block = Block::new(height, prev_hash, vec![], drained.clone());
+            chain.add_block(block).unwrap();
+        }
+
+        // Retrieve block via engine.get_block and ensure events are present
+        let block_info = engine.get_block(1).expect("Block should exist");
+        assert_eq!(block_info.height, 1);
+        assert!(!block_info.events.is_empty());
+        assert_eq!(block_info.events[0].type_tag, "kanari::TransferEvent");
     }
 }
