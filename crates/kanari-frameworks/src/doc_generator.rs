@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use log::LevelFilter;
 use move_command_line_common::{
     address::NumericalAddress,
-    files::{extension_equals, find_filenames, MOVE_EXTENSION},
+    files::{MOVE_EXTENSION, extension_equals, find_filenames},
 };
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 

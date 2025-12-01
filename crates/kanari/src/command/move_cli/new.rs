@@ -6,7 +6,7 @@ use kanari_common::load_kanari_config;
 use move_package::source_package::layout::SourcePackageLayout;
 use std::{
     fmt::Display,
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::Write,
     path::{Path, PathBuf},
 };

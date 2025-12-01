@@ -1,5 +1,5 @@
 use anyhow::Result;
-use kanari_crypto::keys::{generate_keypair, CurveType};
+use kanari_crypto::keys::{CurveType, generate_keypair};
 use kanari_move_runtime::{
     BlockchainEngine, ContractCall, ContractDeployment, ContractMetadata, SignedTransaction,
     Transaction,

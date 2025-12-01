@@ -254,7 +254,10 @@ async fn main() -> Result<()> {
     );
 
     // Get genesis root object state
-    println!("{} INFO kanari_rpc_server: The latest Root object state root: 0x601325c97b7a37ca2e42ff1f53b306deef8fa5304691650311bb573f4d4ed6e5, size: 64", Local::now().format("%Y-%m-%dT%H:%M:%S%.6fZ"));
+    println!(
+        "{} INFO kanari_rpc_server: The latest Root object state root: 0x601325c97b7a37ca2e42ff1f53b306deef8fa5304691650311bb573f4d4ed6e5, size: 64",
+        Local::now().format("%Y-%m-%dT%H:%M:%S%.6fZ")
+    );
 
     // Get RPC server sequencer address
     let dev_addr = "0x840512ff2c03135d82d55098f7461579cfe87f5c10c62718f818c0beeca138ea";
@@ -309,27 +312,27 @@ async fn main() -> Result<()> {
         let timestamp = Local::now().format("%Y-%m-%dT%H:%M:%S%.6fZ");
 
         println!(
-			"{} INFO kanari_node::sequencer: Block height: {}, Transactions: {}, Pending: {}, Accounts: {}, Wallets: {}",
-			timestamp,
-			stats.height,
-			stats.total_transactions,
-			stats.pending_transactions,
-			stats.total_accounts,
-			wallets.len()
-		);
+            "{} INFO kanari_node::sequencer: Block height: {}, Transactions: {}, Pending: {}, Accounts: {}, Wallets: {}",
+            timestamp,
+            stats.height,
+            stats.total_transactions,
+            stats.pending_transactions,
+            stats.total_accounts,
+            wallets.len()
+        );
 
         // Try to produce block if there are pending transactions
         if stats.pending_transactions > 0 {
             match engine.produce_block() {
                 Ok(block_info) => {
                     println!(
-						"{} INFO kanari_node::block_producer: Block #{} produced: {} txs ({} executed, {} failed)",
-						Local::now().format("%Y-%m-%dT%H:%M:%S%.6fZ"),
-						block_info.height,
-						block_info.tx_count,
-						block_info.executed,
-						block_info.failed
-					);
+                        "{} INFO kanari_node::block_producer: Block #{} produced: {} txs ({} executed, {} failed)",
+                        Local::now().format("%Y-%m-%dT%H:%M:%S%.6fZ"),
+                        block_info.height,
+                        block_info.tx_count,
+                        block_info.executed,
+                        block_info.failed
+                    );
                 }
                 Err(e) => {
                     println!(

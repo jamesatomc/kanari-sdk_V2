@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use kanari_crypto::{
-    keys::{generate_keypair, generate_mnemonic, keypair_from_mnemonic, CurveType},
-    wallet::{list_wallet_files, load_wallet, save_wallet, set_selected_wallet, Wallet},
+    keys::{CurveType, generate_keypair, generate_mnemonic, keypair_from_mnemonic},
+    wallet::{Wallet, list_wallet_files, load_wallet, save_wallet, set_selected_wallet},
 };
 use kanari_move_runtime::SignedTransaction;
 use kanari_rpc_client::RpcClient;

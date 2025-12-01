@@ -4,7 +4,7 @@ use move_core_types::identifier::Identifier;
 use move_core_types::language_storage::ModuleId;
 use move_vm_test_utils::InMemoryStorage;
 use rocksdb::Direction;
-use rocksdb::{IteratorMode, Options, DB};
+use rocksdb::{DB, IteratorMode, Options};
 use std::path::PathBuf;
 
 /// Simple persistent store for published modules and small runtime state.

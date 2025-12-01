@@ -164,7 +164,7 @@ impl Call {
         // Query account sequence number so signature and RPC include it
         let mut seq_num: u64 = 0;
         {
-            use kanari_rpc_api::{methods, RpcRequest, RpcResponse};
+            use kanari_rpc_api::{RpcRequest, RpcResponse, methods};
             let acct_req = RpcRequest {
                 jsonrpc: "2.0".to_string(),
                 method: methods::GET_ACCOUNT.to_string(),
@@ -230,7 +230,7 @@ impl Call {
         };
 
         // Build CallFunctionRequest and wrap into RpcRequest
-        use kanari_rpc_api::{methods, CallFunctionRequest, RpcRequest, RpcResponse};
+        use kanari_rpc_api::{CallFunctionRequest, RpcRequest, RpcResponse, methods};
         use reqwest::blocking::Client;
 
         let call_req = CallFunctionRequest {

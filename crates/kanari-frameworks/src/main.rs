@@ -4,7 +4,7 @@ mod packages_config;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use doc_generator::{generate_documentation, PackageDocConfig};
+use doc_generator::{PackageDocConfig, generate_documentation};
 use kanari_types::address::Address;
 use packages_config::get_package_configs;
 use std::{

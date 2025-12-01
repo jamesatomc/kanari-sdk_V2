@@ -631,10 +631,12 @@ mod tests {
             candidate.push(format!("kanari_move_vm_db_{}_{}_{}", ts, pid, i));
             match std::fs::create_dir(&candidate) {
                 Ok(_) => {
-                    std::env::set_var(
-                        "KANARI_MOVE_VM_DB",
-                        candidate.to_string_lossy().into_owned(),
-                    );
+                    unsafe {
+                        std::env::set_var(
+                            "KANARI_MOVE_VM_DB",
+                            candidate.to_string_lossy().into_owned(),
+                        );
+                    }
                     created = true;
                     break;
                 }
@@ -666,7 +668,7 @@ mod tests {
 
     #[test]
     fn test_submit_transaction() {
-        use kanari_crypto::keys::{generate_keypair, CurveType};
+        use kanari_crypto::keys::{CurveType, generate_keypair};
 
         // Ensure runtime DB is isolated per-test
         set_unique_move_vm_db_env();

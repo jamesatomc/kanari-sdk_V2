@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::reroot_path;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::*;
 use kanari_crypto::wallet::load_wallet;
 use kanari_types::address::Address;
@@ -157,13 +157,13 @@ impl Publish {
             }
 
             // Create PublishModuleRequest and submit to RPC endpoint
-            use kanari_rpc_api::{methods, PublishModuleRequest, RpcRequest, RpcResponse};
+            use kanari_rpc_api::{PublishModuleRequest, RpcRequest, RpcResponse, methods};
             use reqwest::blocking::Client;
 
             // Get current sequence number for sender from RPC (so signature includes it)
             let mut seq_num: u64 = 0;
             {
-                use kanari_rpc_api::{methods, RpcRequest, RpcResponse};
+                use kanari_rpc_api::{RpcRequest, RpcResponse, methods};
                 let acct_req = RpcRequest {
                     jsonrpc: "2.0".to_string(),
                     method: methods::GET_ACCOUNT.to_string(),

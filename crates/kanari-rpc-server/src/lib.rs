@@ -3,7 +3,7 @@
 //! JSON-RPC server for Kanari blockchain using Axum framework
 
 use anyhow::Result;
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
 use kanari_move_runtime::BlockchainEngine;
 use kanari_rpc_api::*;
 use std::sync::Arc;

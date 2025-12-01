@@ -10,7 +10,7 @@ pub mod test;
 
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use move_package::source_package::layout::SourcePackageLayout;
-use move_stdlib_natives::{all_natives, nursery_natives, GasParameters, NurseryGasParameters};
+use move_stdlib_natives::{GasParameters, NurseryGasParameters, all_natives, nursery_natives};
 use move_vm_runtime::native_functions::NativeFunction;
 use std::path::PathBuf;
 
